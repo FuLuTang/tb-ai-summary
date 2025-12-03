@@ -4,29 +4,44 @@ document.getElementById('clearBtn').addEventListener('click', clearCache);
 
 function restoreOptions() {
     browser.storage.local.get("app_settings").then((res) => {
-        const settings = res.app_settings || { maxCacheEntries: 20, batchSize: 15 };
+        const settings = res.app_settings || {
+            maxCacheEntries: 20,
+            apiKey: "",
+            apiUrl: "https://api.openai.com/v1/chat/completions",
+            model: "gpt-4o-mini",
+            temperature: 0.2
+        };
         document.getElementById('maxCache').value = settings.maxCacheEntries;
-        document.getElementById('batchSize').value = settings.batchSize || 15;
+        document.getElementById('apiKey').value = settings.apiKey || "";
+        document.getElementById('apiUrl').value = settings.apiUrl || "https://api.openai.com/v1/chat/completions";
+        document.getElementById('model').value = settings.model || "gpt-4o-mini";
+        document.getElementById('temperature').value = settings.temperature !== undefined ? settings.temperature : 0.2;
     });
 }
 
 function saveOptions() {
     const maxCache = parseInt(document.getElementById('maxCache').value);
-    const batchSize = parseInt(document.getElementById('batchSize').value);
+    const apiKey = document.getElementById('apiKey').value.trim();
+    const apiUrl = document.getElementById('apiUrl').value.trim();
+    const model = document.getElementById('model').value.trim();
+    const temperature = parseFloat(document.getElementById('temperature').value);
 
     if (!maxCache || maxCache < 1) {
         showStatus("请输入有效的最大缓存数量", "error");
         return;
     }
 
-    if (!batchSize || batchSize < 1) {
-        showStatus("请输入有效的批量总结数量", "error");
+    if (!apiKey) {
+        showStatus("请输入 API Key", "error");
         return;
     }
 
     const settings = {
         maxCacheEntries: maxCache,
-        batchSize: batchSize
+        apiKey: apiKey,
+        apiUrl: apiUrl || "https://api.openai.com/v1/chat/completions",
+        model: model || "gpt-4o-mini",
+        temperature: isNaN(temperature) ? 0.2 : temperature
     };
 
     browser.storage.local.set({ app_settings: settings }).then(() => {

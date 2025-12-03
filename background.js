@@ -1,8 +1,7 @@
 // background.js
 
 // ================= 配置区域 =================
-const API_KEY = "YOUR_OPENAI_API_KEY";
-const API_URL = "https://api.openai.com/v1/chat/completions";
+// API 设置现已移至选项页面配置
 // ===========================================
 
 // 全局变量
@@ -184,8 +183,10 @@ function parseEmailBody(part) {
 }
 
 async function callAI(text, author, subject) {
+    const now = new Date().toLocaleString();
     const prompt = `
 Context:
+Current Time: ${now}
 Author: ${author}
 Subject: ${subject}
 
@@ -202,11 +203,18 @@ You are a smart email assistant. Please analyze the email above and output a JSO
     "urgency_reason": "string (Explain why this score was given in Simplified Chinese)"
 }
 
-Urgency Score Rules:
-- 10: Immediate action required / Financial loss risk / Direct boss instruction.
-- 5: Handle within this week.
-- 1: FYI / Advertisement / Low priority.
-- Context Rule: You MUST consider the Author and Subject. Emails from bosses or VIPs should have higher urgency.
+Urgency Score Rules (1-10):
+- 10（危急）：需要立即采取行动。存在财务损失风险，服务器宕机，或直接由CEO/副总裁/老师下达的命令，或者对我的私人对话。
+- 8-9（高）：需要在48小时内采取行动。重要的漏洞，老师要求，或临近截止日期的作业&提醒。(不包括无用推广)
+- 5-7（中）：正常工作任务。在本周内处理。标准请求、代码审查或会议邀请。
+- 3-4（低）：可能有用的信息，但无需立即采取措施。每周报告、课程提醒。
+- 1-2（无）：仅供参考，新闻简报、广告或垃圾邮件,推广消息，不重要的服务升级
+
+根据当前时间决定 urgency_score 的权重。
+
+Context Boosters:
+- If the subject contains "Urgent", "Emergency", "ASAP", or "Important", boost the score by +2.
+- If the author is a known VIP or manager (infer from context), boost the score by +2.
 
 Constraint:
 - Output ONLY valid JSON.
@@ -214,19 +222,27 @@ Constraint:
 - Summary, action_items, and urgency_reason MUST be in Simplified Chinese.
 `;
 
-    const response = await fetch(API_URL, {
+    if (!appSettings.apiKey) {
+        throw new Error("未配置 API Key，请在扩展设置中填写。");
+    }
+
+    const apiUrl = appSettings.apiUrl || "https://api.openai.com/v1/chat/completions";
+    const model = appSettings.model || "gpt-4o-mini";
+    const temperature = appSettings.temperature !== undefined ? appSettings.temperature : 0.2;
+
+    const response = await fetch(apiUrl, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${API_KEY}`
+            "Authorization": `Bearer ${appSettings.apiKey}`
         },
         body: JSON.stringify({
-            model: "gpt-4o-mini",
+            model: model,
             messages: [
                 { role: "system", content: "You are a strict JSON generator. Output ONLY valid JSON." },
                 { role: "user", content: prompt }
             ],
-            temperature: 0.2
+            temperature: temperature
         })
     });
 
