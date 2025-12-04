@@ -8,7 +8,8 @@
 let appSettings = {
     maxCacheEntries: 500,
     maxRequestsPerSecond: 5,
-    maxConcurrentRequests: 3
+    maxConcurrentRequests: 3,
+    briefingUrgency: 5
 };
 let activeTasks = {}; // { headerMessageId: { status: 'loading' | 'success' | 'error', data: ..., error: ... } }
 
@@ -108,7 +109,12 @@ async function handleBriefing() {
             const cached = await browser.storage.local.get(cacheKey);
             let data = cached[cacheKey];
 
-            if (data && data.urgency_score > 6) {
+            // Use configured threshold (default 5)
+            // Note: User asked for adjustable threshold, default 5.
+            // We interpret this as "include if score >= threshold".
+            const threshold = appSettings.briefingUrgency || 5;
+
+            if (data && data.urgency_score >= threshold) {
                 // Backfill subject if missing (for old cache)
                 if (!data.subject) {
                     try {
@@ -139,7 +145,7 @@ async function handleBriefing() {
         console.log(`Found ${highImportanceEmails.length} high importance emails.`);
 
         if (highImportanceEmails.length === 0) {
-            await saveBriefing("最近一个月没有发现重要度大于 6 的邮件。");
+            await saveBriefing(`最近一个月没有发现重要度大于等于 ${appSettings.briefingUrgency || 5} 的邮件。`);
             return;
         }
 
@@ -244,6 +250,7 @@ async function loadSettings() {
     appSettings.maxCacheEntries = Math.max(1, parseInt(appSettings.maxCacheEntries) || 500);
     appSettings.maxRequestsPerSecond = Math.max(1, parseInt(appSettings.maxRequestsPerSecond) || 5);
     appSettings.maxConcurrentRequests = Math.max(1, parseInt(appSettings.maxConcurrentRequests) || 3);
+    appSettings.briefingUrgency = Math.max(1, parseInt(appSettings.briefingUrgency) || 5);
 }
 
 // 处理总结请求

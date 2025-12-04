@@ -11,7 +11,8 @@ function restoreOptions() {
             model: "gpt-4o-mini",
             temperature: 0.2,
             maxRequestsPerSecond: 5,
-            maxConcurrentRequests: 3
+            maxConcurrentRequests: 3,
+            briefingUrgency: 5
         };
         document.getElementById('maxCache').value = settings.maxCacheEntries;
         document.getElementById('apiKey').value = settings.apiKey || "";
@@ -20,6 +21,7 @@ function restoreOptions() {
         document.getElementById('temperature').value = settings.temperature !== undefined ? settings.temperature : 0.2;
         document.getElementById('maxRps').value = settings.maxRequestsPerSecond !== undefined ? settings.maxRequestsPerSecond : 5;
         document.getElementById('maxConcurrent').value = settings.maxConcurrentRequests !== undefined ? settings.maxConcurrentRequests : 3;
+        document.getElementById('briefingUrgency').value = settings.briefingUrgency !== undefined ? settings.briefingUrgency : 5;
     });
 }
 
@@ -31,6 +33,7 @@ function saveOptions() {
     const temperature = parseFloat(document.getElementById('temperature').value);
     const maxRps = parseInt(document.getElementById('maxRps').value);
     const maxConcurrent = parseInt(document.getElementById('maxConcurrent').value);
+    const briefingUrgency = parseInt(document.getElementById('briefingUrgency').value);
 
     if (!maxCache || maxCache < 1) {
         showStatus("请输入有效的最大缓存数量", "error");
@@ -59,7 +62,8 @@ function saveOptions() {
         model: model || "gpt-4o-mini",
         temperature: isNaN(temperature) ? 0.2 : temperature,
         maxRequestsPerSecond: maxRps,
-        maxConcurrentRequests: maxConcurrent
+        maxConcurrentRequests: maxConcurrent,
+        briefingUrgency: isNaN(briefingUrgency) ? 5 : briefingUrgency
     };
 
     browser.storage.local.set({ app_settings: settings }).then(() => {
