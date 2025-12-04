@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 2. 向 Background 询问当前状态
             const status = await browser.runtime.sendMessage({
                 type: "GET_STATUS",
-                payload: { headerMessageId: currentHeaderMessageId }
+                payload: { headerMessageId: currentHeaderMessageId, messageId: currentMessageId }
             });
 
             if (status) {
@@ -40,10 +40,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error("Init failed:", e);
     }
 
-    // 3. 监听来自 Background 的更新
+    // 监听来自 background 的消息
     browser.runtime.onMessage.addListener((message) => {
-        if (message.type === "SUMMARY_UPDATE" && message.payload.headerMessageId === currentHeaderMessageId) {
-            updateUI(message.payload);
+        if (message.type === "SUMMARY_UPDATE") {
+            const { headerMessageId, status, data, error } = message.payload;
+            // 如果当前显示的正是这封邮件，更新 UI
+            if (currentHeaderMessageId === headerMessageId || currentMessageId === headerMessageId) {
+                updateUI({ status, data, error });
+            }
+        } else if (message.type === "BATCH_START") {
+            showBatchStatus("正在准备批量总结...", "loading");
+        } else if (message.type === "BATCH_PROGRESS") {
+            const { current, total } = message.payload;
+            showBatchStatus(`进度 ${current}/${total} 封邮件`, "loading");
+        } else if (message.type === "BATCH_COMPLETE") {
+            showBatchStatus("批量总结完成！", "success");
+            setTimeout(() => {
+                const batchStatus = document.getElementById('batchStatus');
+                if (batchStatus) batchStatus.style.display = 'none';
+            }, 3000);
+        } else if (message.type === "BATCH_ERROR") {
+            showBatchStatus(`批量总结出错: ${message.payload.error}`, "error");
         }
     });
 
@@ -72,39 +89,60 @@ document.addEventListener('DOMContentLoaded', async () => {
         browser.runtime.openOptionsPage();
     });
 
-    // 6. 未读邮件简报按钮
+    // 6. 一键总结邮件 (带数量)
+    document.getElementById('batchProcessBtn').addEventListener('click', () => {
+        console.log("Batch process button clicked");
+
+        const countInput = document.getElementById('batchCount');
+        let count = parseInt(countInput.value, 10);
+
+        // Validation
+        if (isNaN(count) || count < 1) count = 40;
+        if (count > 150) {
+            alert("一次最多只能总结 150 封邮件，已自动调整为 150。");
+            count = 150;
+            countInput.value = 150;
+        }
+
+        console.log(`Sending START_BATCH_SUMMARY message with count: ${count}`);
+        browser.runtime.sendMessage({
+            type: "START_BATCH_SUMMARY",
+            payload: { targetCount: count }
+        }).then(() => {
+            console.log("Message sent successfully");
+        }).catch(err => {
+            console.error("Message send failed:", err);
+            alert("发送请求失败: " + err.message);
+        });
+
+        const resultDiv = document.getElementById('result');
+        resultDiv.textContent = `已在后台开始批量处理最近 ${count} 封邮件... 请稍后查看缓存或再次打开此窗口。`;
+        resultDiv.className = "success";
+    });
+
+    // 7. 新简报按钮
     document.getElementById('batchSummarizeBtn').addEventListener('click', async () => {
         const resultDiv = document.getElementById('result');
         const btn = document.getElementById('batchSummarizeBtn');
 
-        resultDiv.textContent = "正在获取未读邮件...";
+        resultDiv.textContent = "正在后台生成简报，请稍候...";
         resultDiv.className = "";
-        btn.disabled = true;
 
-        try {
-            // 1. 获取当前文件夹的未读邮件
-            const emails = await getRecentUnreadEmails();
+        // 发送后台任务
+        browser.runtime.sendMessage({ type: "START_BRIEFING" });
 
-            if (emails.length === 0) {
-                resultDiv.textContent = "当前文件夹没有未读邮件 🎉";
-                btn.disabled = false;
-                return;
-            }
+        // 简单的 UI 反馈
+        setTimeout(() => {
+            resultDiv.textContent = "任务已发送到后台。完成后点击“查看已有简报”查看结果。";
+            resultDiv.className = "success";
+        }, 1000);
+    });
 
-            // 2. 调用 AI 生成简报
-            resultDiv.textContent = `找到 ${emails.length} 封未读邮件，正在生成简报...`;
-            const briefing = await callAIBatch(emails);
-
-            // 3. 渲染结果
-            renderBatchResult(resultDiv, briefing);
-
-        } catch (error) {
-            console.error(error);
-            resultDiv.textContent = "生成简报失败: " + error.message;
-            resultDiv.className = "error";
-        } finally {
-            btn.disabled = false;
-        }
+    // 8. 查看已有简报
+    document.getElementById('viewBriefingBtn').addEventListener('click', () => {
+        browser.tabs.create({
+            url: "briefing.html"
+        });
     });
 });
 
@@ -211,12 +249,12 @@ Example Output:
             "Authorization": `Bearer ${API_KEY}`
         },
         body: JSON.stringify({
-            model: "gpt-4o-mini",
+            model: "gpt-5-mini",
             messages: [
                 { role: "system", content: "You are a helpful email assistant. Output plain text with Emojis." },
                 { role: "user", content: prompt }
             ],
-            temperature: 0.3
+            temperature: 1
         })
     });
 
@@ -311,5 +349,39 @@ function renderResult(container, data) {
             ul.appendChild(li);
         });
         container.appendChild(ul);
+    }
+}
+
+function showBatchStatus(text, type) {
+    let statusEl = document.getElementById('batchStatus');
+    if (!statusEl) {
+        // 如果没有这个元素，动态创建一个插在按钮下面
+        statusEl = document.createElement('div');
+        statusEl.id = 'batchStatus';
+        statusEl.style.marginTop = '10px';
+        statusEl.style.padding = '8px';
+        statusEl.style.borderRadius = '4px';
+        statusEl.style.fontSize = '12px';
+
+        const btn = document.getElementById('batchProcessBtn');
+        if (btn && btn.parentNode) {
+            btn.parentNode.insertBefore(statusEl, btn.nextSibling);
+        }
+    }
+
+    if (!statusEl) return;
+
+    statusEl.style.display = 'block';
+    statusEl.textContent = text;
+
+    if (type === 'loading') {
+        statusEl.style.backgroundColor = '#e3f2fd';
+        statusEl.style.color = '#0d47a1';
+    } else if (type === 'success') {
+        statusEl.style.backgroundColor = '#e8f5e9';
+        statusEl.style.color = '#1b5e20';
+    } else if (type === 'error') {
+        statusEl.style.backgroundColor = '#ffebee';
+        statusEl.style.color = '#b71c1c';
     }
 }

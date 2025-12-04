@@ -8,6 +8,7 @@
     },
     "permissions": [
         "messagesRead",
+        "accountsRead",
         "activeTab",
         "storage"
     ],
