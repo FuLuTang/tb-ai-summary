@@ -1,9 +1,6 @@
 // popup.js
 
-// ================= 配置区域 =================
-const API_KEY = "YOUR_OPENAI_API_KEY";
-const API_URL = "https://api.openai.com/v1/chat/completions";
-// ===========================================
+// API 设置已移至选项页面配置 (browser.storage.local)
 
 let currentHeaderMessageId = null;
 let currentMessageId = null;
@@ -167,114 +164,6 @@ function updateUI(state) {
         btn.textContent = "重试";
         btn.style.backgroundColor = "#007bff";
     }
-}
-
-// === Batch Summary Helper Functions ===
-
-async function getRecentUnreadEmails() {
-    // 1. 获取当前 Tab 和文件夹
-    let tabs = await browser.tabs.query({ active: true, currentWindow: true });
-    if (!tabs[0]) throw new Error("无法获取当前标签页");
-
-    // 注意：browser.mailTabs 需要 manifest 权限
-    let mailTab = await browser.mailTabs.getCurrent();
-    if (!mailTab || !mailTab.displayedFolder) {
-        throw new Error("无法获取当前文件夹信息");
-    }
-
-    let folder = mailTab.displayedFolder;
-
-    // 2. 查询未读邮件
-    // 注意：query API 可能不支持 limit，需手动截取
-    let messages = await browser.messages.query({
-        folder: folder,
-        unread: true
-    });
-
-    // 按日期降序排序
-    messages.sort((a, b) => b.date - a.date);
-
-    // 3. 截取前 15 封
-    const recentMessages = messages.slice(0, 15);
-
-    // 4. 提取关键信息 (仅 Header)
-    return recentMessages.map(msg => ({
-        author: msg.author,
-        subject: msg.subject,
-        date: msg.date, // Timestamp
-        preview: msg.preview || "" // 如果有 preview 字段则使用
-    }));
-}
-
-async function callAIBatch(emails) {
-    // 格式化邮件列表
-    const emailListStr = emails.map((email, index) => {
-        const dateStr = new Date(email.date).toLocaleString('zh-CN', { hour12: false });
-        // 简单的垃圾邮件关键词过滤
-        const isPotentialSpam = /unsubscribe|offer|promotion|广告|推广/i.test(email.subject);
-        const spamMark = isPotentialSpam ? "[Potential Spam] " : "";
-
-        return `${index + 1}. [${dateStr}] From: ${email.author}\n   Subject: ${spamMark}${email.subject}\n   Preview: ${email.preview}\n`;
-    }).join("\n");
-
-    const prompt = `
-Context:
-User has ${emails.length} unread emails.
-Current Time: ${new Date().toLocaleString('zh-CN')}
-
-Email List:
-${emailListStr}
-
-Instructions:
-Please generate a brief "Unread Email Briefing" for me.
-- Use Emojis to categorize:
-  🔴 [紧急] for important work/personal emails (Boss, VIP, Urgent).
-  ⚠️ [关注] for normal work/personal emails.
-  🟢 [通知] for newsletters, notifications, or low priority items.
-- Group spam/promotional emails into a single line if possible (e.g. "🟢 3 promotional emails from Amazon, LinkedIn...").
-- Output purely in text format (NO Markdown, NO **bold**).
-- Include time context (e.g. "Just now", "Yesterday").
-- Language: Simplified Chinese.
-
-Example Output:
-🔴 [紧急] 老板: 项目进度汇报 (10分钟前) - 需要尽快回复
-⚠️ [关注] 财务部: 报销流程更新 (昨天)
-🟢 [通知] 5 封广告邮件 (来自 Amazon, GitHub, etc.)
-`;
-
-    const response = await fetch(API_URL, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${API_KEY}`
-        },
-        body: JSON.stringify({
-            model: "gpt-5-mini",
-            messages: [
-                { role: "system", content: "You are a helpful email assistant. Output plain text with Emojis." },
-                { role: "user", content: prompt }
-            ],
-            temperature: 1
-        })
-    });
-
-    if (!response.ok) {
-        const err = await response.text();
-        throw new Error(`API 请求失败: ${response.status} - ${err}`);
-    }
-
-    const data = await response.json();
-    return data.choices[0].message.content;
-}
-
-function renderBatchResult(container, text) {
-    container.innerHTML = "";
-    const p = document.createElement('div');
-    p.style.whiteSpace = "pre-wrap";
-    p.style.textAlign = "left";
-    p.style.lineHeight = "1.6";
-    p.textContent = text;
-    container.appendChild(p);
 }
 
 // 渲染函数 (复用之前的逻辑)
