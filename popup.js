@@ -8,6 +8,26 @@ let currentAuthor = "Unknown";
 let currentSubject = "No Subject";
 
 document.addEventListener('DOMContentLoaded', async () => {
+    const resultDiv = document.getElementById('result');
+    const summarizeBtn = document.getElementById('summarizeBtn');
+
+    // 确保运行在支持 messageDisplay API 的环境（Thunderbird 115+）
+    if (!browser.messageDisplay || typeof browser.messageDisplay.getDisplayedMessage !== 'function') {
+        if (resultDiv) {
+            resultDiv.textContent = "当前环境不支持邮件读取，请在 Thunderbird 中使用此扩展。";
+        }
+        if (summarizeBtn) {
+            summarizeBtn.disabled = true;
+            summarizeBtn.textContent = "不可用";
+        }
+        const disableIds = ['batchProcessBtn', 'batchSummarizeBtn'];
+        disableIds.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.disabled = true;
+        });
+        return;
+    }
+
     // 1. 获取当前邮件信息
     try {
         let tabs = await browser.tabs.query({ active: true, currentWindow: true });
@@ -168,7 +188,7 @@ function updateUI(state) {
 
 // 渲染函数 (复用之前的逻辑)
 function renderResult(container, data) {
-    container.innerHTML = ""; // Clear previous content
+    container.textContent = ""; // Clear previous content
 
     // 1. Urgency
     const urgencyDiv = document.createElement('div');
@@ -184,7 +204,10 @@ function renderResult(container, data) {
         colorClass = "urgency-medium";
     }
 
-    urgencyDiv.innerHTML = `<span class="${colorClass}">${emoji} 紧迫度: ${data.urgency_score}/10</span>`;
+    const urgencySpan = document.createElement('span');
+    urgencySpan.className = colorClass;
+    urgencySpan.textContent = `${emoji} 紧迫度: ${data.urgency_score}/10`;
+    urgencyDiv.appendChild(urgencySpan);
 
     if (data.urgency_score > 7 && data.urgency_reason) {
         const reasonSpan = document.createElement('span');

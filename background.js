@@ -85,6 +85,7 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 async function handleBriefing() {
     console.log("Starting briefing generation...");
+    const canQueryMessages = !!(browser.messages && typeof browser.messages.query === 'function');
     try {
         // 1. Get cache index
         const indexKey = "cache_index";
@@ -116,7 +117,7 @@ async function handleBriefing() {
 
             if (data && data.urgency_score >= threshold) {
                 // Backfill subject if missing (for old cache)
-                if (!data.subject) {
+                if (!data.subject && canQueryMessages) {
                     try {
                         // Try to find the message to get the subject
                         // item.id is the headerMessageId
@@ -133,6 +134,12 @@ async function handleBriefing() {
                         console.warn(`Failed to fetch subject for ${item.id}:`, e);
                         data.subject = "Unknown Subject";
                     }
+                } else if (!data.subject) {
+                    data.subject = "Unknown Subject";
+                }
+
+                if (!data.author) {
+                    data.author = "Unknown Author";
                 }
 
                 highImportanceEmails.push({
@@ -398,6 +405,7 @@ async function handleBatchSummary(payload) {
         console.log("Listing accounts...");
 
         const accounts = await browser.accounts.list();
+        const canQueryMessages = !!(browser.messages && typeof browser.messages.query === 'function');
         if (!accounts || accounts.length === 0) {
             throw new Error("没有找到邮件账户");
         }
@@ -426,6 +434,9 @@ async function handleBatchSummary(payload) {
 
         // Helper to query a single inbox
         const queryInbox = async (inbox, days) => {
+            if (!canQueryMessages) {
+                return [];
+            }
             const fromDate = new Date();
             fromDate.setDate(fromDate.getDate() - days);
             try {
@@ -465,7 +476,7 @@ async function handleBatchSummary(payload) {
         }
 
         // Fallback: If query returns 0 (e.g. API limitations), try list() on each inbox
-        if (allMessages.length === 0) {
+        if (!canQueryMessages || allMessages.length === 0) {
             console.log("Query returned 0, falling back to standard list() on all inboxes...");
             const results = await Promise.all(inboxes.map(async inbox => {
                 try {
@@ -638,15 +649,17 @@ You are a smart email assistant. Please analyze the email provided by the user a
 }
 
 Urgency Score Rules (1-10):
-- 10（危急）：需要立即采取行动。存在财务损失风险，服务器宕机，或直接由CEO/副总裁/老师下达的命令，或者对我的私人对话。
+- 10（危急）：需要立即采取行动。存在财务损失风险，或直接由CEO/老师下达的命令，或者对我的私人对话。
 - 8-9（高）：需要在48小时内采取行动。重要的漏洞，老师要求，或临近截止日期的作业&提醒。(不包括无用推广)
 - 5-7（中）：正常工作任务。在本周内处理。标准请求、代码审查或会议邀请。
-- 3-4（低）：可能有用的信息，但无需立即采取措施。每周报告、课程提醒。
-- 1-2（无）：仅供参考，新闻简报、广告或垃圾邮件,推广消息，不重要的服务升级
+- 3-4（低）：可能有用的信息，但无需立即采取措施。每周报告、课程提醒，常见新登录提醒
+- 1-2（无）：仅供参考，新闻简报、广告或垃圾邮件,推广消息，不重要的服务升级,验证码推送
 
 Context Boosters:
 - If the subject contains "Urgent", "Emergency", "ASAP", or "Important", boost the score by +2.
 - If the author is a known VIP or manager (infer from context), boost the score by +2.
+- 若发件人是noreply, 分数 -1.
+- 若为验证码，无重要性
 
 Constraint:
 - Output ONLY valid JSON.
