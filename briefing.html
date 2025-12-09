@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="utf-8">
-    <title>Email Briefing</title>
+    <title id="briefingTitle">Email Briefing</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -55,12 +55,13 @@
 
 <body>
     <div class="container">
-        <h1>最新邮件简报</h1>
+        <h1 id="briefingTitleHeader">Email Briefing</h1>
         <div id="timestamp" class="timestamp"></div>
         <div id="content" class="content">
             <div class="loading">正在加载简报内容...</div>
         </div>
     </div>
+    <script src="i18n.js"></script>
     <script src="briefing.js"></script>
 </body>
 

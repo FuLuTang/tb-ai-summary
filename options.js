@@ -1,6 +1,13 @@
 document.addEventListener('DOMContentLoaded', restoreOptions);
 document.getElementById('saveBtn').addEventListener('click', saveOptions);
 document.getElementById('clearBtn').addEventListener('click', clearCache);
+const displayLanguageSelect = document.getElementById('displayLanguage');
+if (displayLanguageSelect) {
+    displayLanguageSelect.addEventListener('change', (e) => {
+        const lang = e.target.value || "en";
+        updateUIText(lang);
+    });
+}
 
 function restoreOptions() {
     browser.storage.local.get("app_settings").then((res) => {
@@ -12,8 +19,14 @@ function restoreOptions() {
             temperature: 0.2,
             maxRequestsPerSecond: 5,
             maxConcurrentRequests: 3,
-            briefingUrgency: 5
+            briefingUrgency: 5,
+            displayLanguage: "en",
+            outputLanguage: "English"
         };
+        document.getElementById('displayLanguage').value = settings.displayLanguage || "en";
+        document.getElementById('outputLanguage').value = settings.outputLanguage || "English";
+
+        updateUIText(settings.displayLanguage || "en");
         document.getElementById('maxCache').value = settings.maxCacheEntries;
         document.getElementById('apiKey').value = settings.apiKey || "";
         document.getElementById('apiUrl').value = settings.apiUrl || "https://api.openai.com/v1/chat/completions";
@@ -33,7 +46,10 @@ function saveOptions() {
     const temperature = parseFloat(document.getElementById('temperature').value);
     const maxRps = parseInt(document.getElementById('maxRps').value);
     const maxConcurrent = parseInt(document.getElementById('maxConcurrent').value);
+
     const briefingUrgency = parseInt(document.getElementById('briefingUrgency').value);
+    const displayLanguage = document.getElementById('displayLanguage').value;
+    const outputLanguage = document.getElementById('outputLanguage').value;
 
     if (!maxCache || maxCache < 1) {
         showStatus("请输入有效的最大缓存数量", "error");
@@ -63,11 +79,14 @@ function saveOptions() {
         temperature: isNaN(temperature) ? 0.2 : temperature,
         maxRequestsPerSecond: maxRps,
         maxConcurrentRequests: maxConcurrent,
-        briefingUrgency: isNaN(briefingUrgency) ? 5 : briefingUrgency
+        briefingUrgency: isNaN(briefingUrgency) ? 5 : briefingUrgency,
+        displayLanguage: displayLanguage,
+        outputLanguage: outputLanguage
     };
 
     browser.storage.local.set({ app_settings: settings }).then(() => {
-        showStatus("设置已保存", "success");
+        updateUIText(displayLanguage);
+        showStatus(getText("statusSaved", displayLanguage), "success");
         // 通知后台更新设置并执行裁剪
         browser.runtime.sendMessage({ type: "SETTINGS_UPDATED" });
     });
@@ -76,22 +95,24 @@ function saveOptions() {
 
 
 function clearCache() {
-    if (!confirm("确定要清空所有缓存吗？这将删除所有已保存的摘要，但保留设置。")) return;
+    const lang = document.getElementById('displayLanguage').value || "en";
+    if (!confirm(getText("statusClearConfirm", lang))) return;
 
     const btn = document.getElementById('clearBtn');
     btn.disabled = true;
-    showStatus("正在清空缓存...", "success");
+    showStatus(getText("statusClearing", lang), "success");
 
     browser.runtime.sendMessage({ type: "CLEAR_CACHE" }).then((res) => {
         if (res && !res.error) {
-            showStatus(`缓存已清空（删除 ${res.removed || 0} 条）`, "success");
-            appendLog(`缓存清空完成，删除 ${res.removed || 0} 条。`);
+            const msg = getText("statusCleared", lang).replace("{n}", res.removed || 0);
+            showStatus(msg, "success");
+            appendLog(msg);
         } else {
-            showStatus("清空缓存失败: " + (res ? res.error : "未知错误"), "error");
+            showStatus(getText("statusError", lang).replace("{error}", res ? res.error : "Unknown"), "error");
         }
     }).catch((err) => {
         console.error("Clear cache failed:", err);
-        showStatus("清空缓存失败: " + err.message, "error");
+        showStatus(getText("statusError", lang).replace("{error}", err.message), "error");
     }).finally(() => {
         btn.disabled = false;
     });
@@ -115,6 +136,37 @@ function appendLog(message) {
     const now = new Date().toLocaleTimeString();
     logArea.value += `[${now}] ${message}\n`;
     logArea.scrollTop = logArea.scrollHeight; // 自动滚动到底部
+}
+
+// 更新页面文案
+function updateUIText(lang = "en") {
+    const textMap = [
+        ["settingsTitle", "settingsTitle"],
+        ["settingsTitleHeader", "settingsTitle"],
+        ["apiKeyLabel", "apiKeyLabel"],
+        ["apiUrlLabel", "apiUrlLabel"],
+        ["displayLanguageLabel", "displayLanguageLabel"],
+        ["outputLanguageLabel", "outputLanguageLabel"],
+        ["modelLabel", "modelLabel"],
+        ["temperatureLabel", "temperatureLabel"],
+        ["temperatureDesc", "temperatureDesc"],
+        ["maxRpsLabel", "maxRpsLabel"],
+        ["maxRpsDesc", "maxRpsDesc"],
+        ["maxConcurrentLabel", "maxConcurrentLabel"],
+        ["maxConcurrentDesc", "maxConcurrentDesc"],
+        ["maxCacheLabel", "maxCacheLabel"],
+        ["maxCacheDesc", "maxCacheDesc"],
+        ["briefingUrgencyLabel", "briefingUrgencyLabel"],
+        ["briefingUrgencyDesc", "briefingUrgencyDesc"],
+        ["saveBtn", "saveBtn"],
+        ["clearBtn", "clearBtn"],
+        ["logTitle", "logTitle"]
+    ];
+
+    textMap.forEach(([id, key]) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = getText(key, lang);
+    });
 }
 
 // 监听广播消息

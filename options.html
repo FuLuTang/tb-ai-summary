@@ -3,18 +3,24 @@
 
 <head>
     <meta charset="utf-8">
-    <title>AI Mail Summarizer 设置</title>
+    <title id="settingsTitle">AI Mail Summarizer Settings</title>
     <style>
         body {
             font-family: sans-serif;
             padding: 20px;
-            max-width: 500px;
+            max-width: 800px;
             margin: 0 auto;
         }
 
         h2 {
             border-bottom: 1px solid #ccc;
             padding-bottom: 10px;
+        }
+
+        .settings-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
         }
 
         .form-group {
@@ -27,7 +33,10 @@
             font-weight: bold;
         }
 
-        input[type="number"] {
+        input[type="number"],
+        input[type="text"],
+        input[type="password"],
+        select {
             width: 100%;
             padding: 8px;
             box-sizing: border-box;
@@ -37,6 +46,7 @@
             margin-top: 30px;
             display: flex;
             gap: 10px;
+            justify-content: flex-start;
         }
 
         button {
@@ -82,79 +92,108 @@
             color: #721c24;
             display: block;
         }
+
+        @media (max-width: 600px) {
+            .settings-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 
 <body>
-    <h2>AI Mail Summarizer 设置</h2>
+    <h2 id="settingsTitleHeader">AI Mail Summarizer Settings</h2>
 
-    <div class="form-group">
-        <label for="apiKey">API Key</label>
-        <input type="password" id="apiKey" placeholder="sk-...">
+    <div class="settings-grid">
+        <div class="form-group">
+            <label id="apiKeyLabel" for="apiKey">API Key</label>
+            <input type="password" id="apiKey" placeholder="sk-...">
+        </div>
+
+        <div class="form-group">
+            <label id="apiUrlLabel" for="apiUrl">API URL</label>
+            <input type="text" id="apiUrl" placeholder="https://api.openai.com/v1/chat/completions">
+        </div>
+
+        <div class="form-group">
+            <label id="displayLanguageLabel" for="displayLanguage">Display Language</label>
+            <select id="displayLanguage">
+                <option value="en">English</option>
+                <option value="zh">中文</option>
+                <option value="fr">Français</option>
+                <option value="ja">日本語</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label id="outputLanguageLabel" for="outputLanguage">AI Output Language</label>
+            <select id="outputLanguage">
+                <option value="English">English</option>
+                <option value="Simplified Chinese">中文</option>
+                <option value="French">Français</option>
+                <option value="Japanese">日本語</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label id="modelLabel" for="model">Model Name</label>
+            <input type="text" id="model" placeholder="gpt-4o-mini">
+        </div>
+
+        <div class="form-group">
+            <label id="temperatureLabel" for="temperature">Temperature (0.0 - 2.0)</label>
+            <input type="number" id="temperature" min="0" max="2" step="0.1" placeholder="0.2">
+            <p id="temperatureDesc" style="font-size: 12px; color: #666;">
+                Controls AI randomness. Lower (0.2) is more focused, higher (0.8) is more creative.
+            </p>
+        </div>
+
+        <div class="form-group">
+            <label id="maxRpsLabel" for="maxRps">Max Requests Per Second (RPS)</label>
+            <input type="number" id="maxRps" min="1" max="50" placeholder="5">
+            <p id="maxRpsDesc" style="font-size: 12px; color: #666;">
+                OpenAI default limit is ~5 req/s. Adjust based on your quota.
+            </p>
+        </div>
+
+        <div class="form-group">
+            <label id="maxConcurrentLabel" for="maxConcurrent">Max Concurrent Requests</label>
+            <input type="number" id="maxConcurrent" min="1" max="20" placeholder="3">
+            <p id="maxConcurrentDesc" style="font-size: 12px; color: #666;">
+                Controls simultaneous requests to avoid failures.
+            </p>
+        </div>
+
+        <div class="form-group">
+            <label id="maxCacheLabel" for="maxCache">Max Cache Entries</label>
+            <input type="number" id="maxCache" min="1" max="100">
+            <p id="maxCacheDesc" style="font-size: 12px; color: #666;">
+                Max number of summaries to keep. Oldest will be removed when full.
+            </p>
+        </div>
+
+        <div class="form-group">
+            <label id="briefingUrgencyLabel" for="briefingUrgency">Briefing Urgency Threshold</label>
+            <input type="number" id="briefingUrgency" min="1" max="10" placeholder="5">
+            <p id="briefingUrgencyDesc" style="font-size: 12px; color: #666;">
+                Only include emails with urgency >= this value in briefings. Default 5.
+            </p>
+        </div>
     </div>
 
-    <div class="form-group">
-        <label for="apiUrl">API URL</label>
-        <input type="text" id="apiUrl" placeholder="https://api.openai.com/v1/chat/completions">
-    </div>
-
-    <div class="form-group">
-        <label for="model">Model Name</label>
-        <input type="text" id="model" placeholder="gpt-4o-mini">
-    </div>
-
-    <div class="form-group">
-        <label for="temperature">Temperature (0.0 - 2.0)</label>
-        <input type="number" id="temperature" min="0" max="2" step="0.1" placeholder="0.2">
-        <p style="font-size: 12px; color: #666;">
-            控制 AI 的随机性。较低的值 (0.2) 更严谨，较高的值 (0.8) 更具创造性。
-        </p>
-    </div>
-
-    <div class="form-group">
-        <label for="maxRps">每秒请求上限 (RPS)</label>
-        <input type="number" id="maxRps" min="1" max="50" placeholder="5">
-        <p style="font-size: 12px; color: #666;">
-            OpenAI 默认速率限制约为 5 req/s，可根据账号配额调整。批量请求会遵守此值。
-        </p>
-    </div>
-
-    <div class="form-group">
-        <label for="maxConcurrent">并发请求上限</label>
-        <input type="number" id="maxConcurrent" min="1" max="20" placeholder="3">
-        <p style="font-size: 12px; color: #666;">
-            控制同时并发的请求数量，避免一次性发出过多请求导致失败或被限流。
-        </p>
-    </div>
-
-    <div class="form-group">
-        <label for="maxCache">最大缓存数量 (Max Cache Entries)</label>
-        <input type="number" id="maxCache" min="1" max="100">
-        <p style="font-size: 12px; color: #666;">
-            设置缓存的邮件摘要数量。当超过此数量时，最早查看的摘要将被自动删除。
-        </p>
-    </div>
-
-    <div class="form-group">
-        <label for="briefingUrgency">简报紧急度阈值 (Briefing Urgency Threshold)</label>
-        <input type="number" id="briefingUrgency" min="1" max="10" placeholder="5">
-        <p style="font-size: 12px; color: #666;">
-            生成简报时，仅包含紧急度分数大于或等于此值的邮件。默认 5。
-        </p>
-    </div>
-
-    <div class="form-group">
-        <button id="saveBtn">保存设置</button>
-        <button id="clearBtn" class="secondary">清空缓存</button>
+    <div class="actions">
+        <button id="saveBtn">Save Settings</button>
+        <button id="clearBtn" class="secondary">Clear Cache</button>
     </div>
     <div id="status" class="status"></div>
 
     <div class="log-section" style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 10px;">
-        <h3>运行日志</h3>
+        <h3 id="logTitle">Logs</h3>
         <textarea id="logArea" readonly
             style="width: 100%; height: 200px; font-family: monospace; font-size: 9px; padding: 5px; border: 1px solid #ccc; resize: vertical;"></textarea>
     </div>
 
+    <script src="i18n.js"></script>
     <script src="options.js"></script>
 </body>
 

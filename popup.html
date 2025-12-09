@@ -270,23 +270,24 @@
 
 <body>
     <div class="header-row">
-        <h3 style="margin:0;">邮件 AI 总结</h3>
+        <h3 id="popupTitle" style="margin:0;">Email AI Summary</h3>
         <button id="settingsBtn" class="settings-btn" title="设置">⚙️</button>
     </div>
 
-    <button id="summarizeBtn">开始总结</button>
+    <button id="summarizeBtn">Summarize</button>
     <div style="margin-top: 10px; display: flex; gap: 5px;">
-        <button id="batchProcessBtn" style="background-color: #17a2b8; flex: 2;">一键总结邮件</button>
+        <button id="batchProcessBtn" style="background-color: #17a2b8; flex: 2;">Batch Summarize</button>
         <div style="flex: 1; display: flex; align-items: center; gap: 2px;">
-            <label for="batchCount" style="font-size: 12px; white-space: nowrap;">数量:</label>
+            <label id="batchCountLabel" for="batchCount" style="font-size: 12px; white-space: nowrap;">Count:</label>
             <input type="number" id="batchCount" value="40" min="1" max="150"
                 style="width: 100%; padding: 5px; border: 1px solid #ccc; border-radius: 4px;">
         </div>
     </div>
-    <button id="batchSummarizeBtn" style="margin-top: 10px; background-color: #28a745;">新简报</button>
-    <button id="viewBriefingBtn" style="margin-top: 10px; background-color: #6c757d;">查看已有简报</button>
+    <button id="batchSummarizeBtn" style="margin-top: 10px; background-color: #28a745;">New Briefing</button>
+    <button id="viewBriefingBtn" style="margin-top: 10px; background-color: #6c757d;">View Existing Briefing</button>
     <div id="result"></div>
 
+    <script src="i18n.js"></script>
     <script src="popup.js"></script>
 </body>
 

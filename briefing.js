@@ -2,6 +2,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const contentDiv = document.getElementById('content');
     const timestampDiv = document.getElementById('timestamp');
 
+    // Load language
+    const settings = await browser.storage.local.get("app_settings");
+    const lang = (settings.app_settings && settings.app_settings.displayLanguage) ? settings.app_settings.displayLanguage : "en";
+
+    // Update static text
+    const titleEl = document.getElementById('briefingTitle');
+    if (titleEl) titleEl.textContent = getText("briefingTitle", lang);
+    const headerEl = document.getElementById('briefingTitleHeader');
+    if (headerEl) headerEl.textContent = getText("briefingTitle", lang);
+
     const showMessage = (text) => {
         contentDiv.textContent = text;
         contentDiv.classList.add('error');
@@ -12,14 +22,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         const briefing = data.latest_briefing;
 
         if (!briefing) {
-            showMessage('暂无简报记录。请先在插件弹窗中点击“新简报”生成。');
+            showMessage(getText("briefingNoContent", lang));
             return;
         }
 
         // Format timestamp
         if (briefing.timestamp) {
             const date = new Date(briefing.timestamp);
-            timestampDiv.textContent = `生成时间: ${date.toLocaleString('zh-CN')}`;
+            timestampDiv.textContent = `${getText("briefingGeneratedAt", lang)}${date.toLocaleString(lang === 'zh' ? 'zh-CN' : (lang === 'ja' ? 'ja-JP' : (lang === 'fr' ? 'fr-FR' : 'en-US')))}`;
         }
 
         // Display content
@@ -27,11 +37,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             contentDiv.classList.remove('error');
             contentDiv.textContent = briefing.content;
         } else {
-            showMessage('简报内容为空。');
+            showMessage(getText("briefingNoContent", lang));
         }
 
     } catch (error) {
         console.error('Failed to load briefing:', error);
-        showMessage(`加载失败: ${error.message}`);
+        showMessage(`${getText("statusError", lang).replace("{error}", error.message)}`);
     }
 });

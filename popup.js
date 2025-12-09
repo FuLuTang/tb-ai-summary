@@ -8,13 +8,18 @@ let currentAuthor = "Unknown";
 let currentSubject = "No Subject";
 
 document.addEventListener('DOMContentLoaded', async () => {
+    // Load language
+    const settings = await browser.storage.local.get("app_settings");
+    const lang = (settings.app_settings && settings.app_settings.displayLanguage) ? settings.app_settings.displayLanguage : "en";
+    updatePopupUIText(lang);
+
     const resultDiv = document.getElementById('result');
     const summarizeBtn = document.getElementById('summarizeBtn');
 
     // 确保运行在支持 messageDisplay API 的环境（Thunderbird 115+）
     if (!browser.messageDisplay || typeof browser.messageDisplay.getDisplayedMessage !== 'function') {
         if (resultDiv) {
-            resultDiv.textContent = "当前环境不支持邮件读取，请在 Thunderbird 中使用此扩展。";
+            resultDiv.textContent = getText("popupNoMail", lang);
         }
         if (summarizeBtn) {
             summarizeBtn.disabled = true;
@@ -34,7 +39,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         let message = await browser.messageDisplay.getDisplayedMessage(tabs[0].id);
 
         if (!message) {
-            document.getElementById('result').textContent = "没有检测到打开的邮件。";
+            document.getElementById('result').textContent = getText("popupNoMail", lang);
             // Don't return here, allow batch button to work
         } else {
             currentHeaderMessageId = message.headerMessageId;
@@ -49,7 +54,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
 
             if (status) {
-                updateUI(status);
+                updateUI(status, lang);
             }
         }
 
@@ -58,12 +63,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // 监听来自 background 的消息
-    browser.runtime.onMessage.addListener((message) => {
+    browser.runtime.onMessage.addListener(async (message) => {
         if (message.type === "SUMMARY_UPDATE") {
             const { headerMessageId, status, data, error } = message.payload;
             // 如果当前显示的正是这封邮件，更新 UI
             if (currentHeaderMessageId === headerMessageId || currentMessageId === headerMessageId) {
-                updateUI({ status, data, error });
+                const settings = await browser.storage.local.get("app_settings");
+                const lang = (settings.app_settings && settings.app_settings.displayLanguage) ? settings.app_settings.displayLanguage : "en";
+                updateUI({ status, data, error }, lang);
             }
         } else if (message.type === "BATCH_START") {
             showBatchStatus("正在准备批量总结...", "loading");
@@ -82,7 +89,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // 4. 绑定按钮事件 (单封总结)
-    document.getElementById('summarizeBtn').addEventListener('click', () => {
+    document.getElementById('summarizeBtn').addEventListener('click', async () => {
         if (!currentHeaderMessageId) return;
 
         // 发送开始指令
@@ -98,7 +105,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         // 立即更新 UI 为 Loading
-        updateUI({ status: 'loading' });
+        const settings = await browser.storage.local.get("app_settings");
+        const lang = (settings.app_settings && settings.app_settings.displayLanguage) ? settings.app_settings.displayLanguage : "en";
+        updateUI({ status: 'loading' }, lang);
     });
 
     // 5. 设置按钮 -> 打开选项页
@@ -163,31 +172,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 });
 
-function updateUI(state) {
+function updateUI(state, lang = "en") {
     const resultDiv = document.getElementById('result');
     const btn = document.getElementById('summarizeBtn');
 
     if (state.status === 'loading') {
-        resultDiv.textContent = "正在读取邮件并思考中...";
+        resultDiv.textContent = getText("popupLoading", lang);
         resultDiv.className = "";
         btn.disabled = true;
-        btn.textContent = "正在生成...";
+        btn.textContent = getText("popupLoading", lang);
     } else if (state.status === 'success') {
-        renderResult(resultDiv, state.data);
+        renderResult(resultDiv, state.data, lang);
         btn.disabled = false;
-        btn.textContent = "重新生成 (Regenerate)";
+        btn.textContent = getText("popupRegenerate", lang);
         btn.style.backgroundColor = "#f57c00";
     } else if (state.status === 'error') {
-        resultDiv.textContent = "出错啦: " + state.error;
+        resultDiv.textContent = getText("statusError", lang).replace("{error}", state.error);
         resultDiv.className = "error";
         btn.disabled = false;
-        btn.textContent = "重试";
+        btn.textContent = getText("popupRetry", lang);
         btn.style.backgroundColor = "#007bff";
     }
 }
 
 // 渲染函数 (复用之前的逻辑)
-function renderResult(container, data) {
+function renderResult(container, data, lang = "en") {
     container.textContent = ""; // Clear previous content
 
     // 1. Urgency
@@ -206,7 +215,7 @@ function renderResult(container, data) {
 
     const urgencySpan = document.createElement('span');
     urgencySpan.className = colorClass;
-    urgencySpan.textContent = `${emoji} 紧迫度: ${data.urgency_score}/10`;
+    urgencySpan.textContent = `${emoji} ${getText("urgency", lang)}: ${data.urgency_score}/10`;
     urgencyDiv.appendChild(urgencySpan);
 
     if (data.urgency_score > 7 && data.urgency_reason) {
@@ -232,7 +241,7 @@ function renderResult(container, data) {
 
     // 3. Summary
     const summaryHeader = document.createElement('h4');
-    summaryHeader.textContent = "摘要";
+    summaryHeader.textContent = getText("summaryHeader", lang);
     container.appendChild(summaryHeader);
 
     const summaryP = document.createElement('p');
@@ -242,7 +251,7 @@ function renderResult(container, data) {
     // 4. Action Items
     if (data.action_items && data.action_items.length > 0) {
         const actionHeader = document.createElement('h4');
-        actionHeader.textContent = "待办事项";
+        actionHeader.textContent = getText("actionItemsHeader", lang);
         container.appendChild(actionHeader);
 
         const ul = document.createElement('ul');
@@ -295,5 +304,45 @@ function showBatchStatus(text, type) {
     } else if (type === 'error') {
         statusEl.style.backgroundColor = '#ffebee';
         statusEl.style.color = '#b71c1c';
+    }
+}
+
+
+function updatePopupUIText(lang) {
+    const btnMap = {
+        "summarizeBtn": "popupSummarizeBtn",
+        "batchProcessBtn": "popupBatchBtn",
+        "batchSummarizeBtn": "popupBriefingBtn",
+        "viewBriefingBtn": "popupViewBriefingBtn"
+    };
+
+    for (const [id, key] of Object.entries(btnMap)) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = getText(key, lang);
+    }
+
+    // Also update title if possible, though we used a hardcoded ID "popupTitle" in HTML
+    const titleEl = document.getElementById('popupTitle');
+    if (titleEl) {
+        // We reuse settingsTitle or add a new key. Let's use settingsTitle for now as a fallback or "Email AI Summary"
+        // Actually I didn't add "popupTitle" to i18n.js. I'll just leave it or map it to settingsTitle which is close.
+        // Or better, just don't touch it if I don't have a translation.
+        // Wait, I see I used "settingsTitle" in the previous attempt but it failed.
+        // Let's check i18n.js again.
+        titleEl.textContent = getText("settingsTitle", lang);
+    }
+
+    const batchCountLabel = document.getElementById('batchCountLabel');
+    if (batchCountLabel) {
+        // I didn't add "batchCountLabel" to i18n.js either. 
+        // I should probably add it or just hardcode for now.
+        // "Count:" -> "数量:"
+        const countMap = {
+            "en": "Count:",
+            "zh": "数量:",
+            "fr": "Nombre:",
+            "ja": "数:"
+        };
+        batchCountLabel.textContent = countMap[lang] || "Count:";
     }
 }

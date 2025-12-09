@@ -9,7 +9,9 @@ let appSettings = {
     maxCacheEntries: 500,
     maxRequestsPerSecond: 5,
     maxConcurrentRequests: 3,
-    briefingUrgency: 5
+    briefingUrgency: 5,
+    displayLanguage: "en",
+    outputLanguage: "English"
 };
 let activeTasks = {}; // { headerMessageId: { status: 'loading' | 'success' | 'error', data: ..., error: ... } }
 
@@ -182,10 +184,11 @@ async function handleBriefing() {
 }
 
 async function callAIBriefing(summaries) {
+    const outputLang = appSettings.outputLanguage || "Simplified Chinese";
     const systemPrompt = `
 You are an executive assistant. Your job is to summarize a list of high-importance emails into a concise briefing.
 The user will provide a list of email summaries.
-Please generate a "New Briefing" (新简报) in Simplified Chinese.
+Please generate a "New Briefing" (新简报) in ${outputLang}.
 
 Requirements:
 1.  **Overview**: Start with a 1-sentence overview of the key themes.
@@ -200,7 +203,7 @@ Here are the summaries of high-importance emails from the last month:
 
 ${summaries}
 
-Please write the briefing.
+Please write the briefing. Use ${outputLang} for output.
 `;
     /// 简报代码——————————————————
     if (!appSettings.apiKey) {
@@ -249,15 +252,16 @@ async function saveBriefing(content) {
 // 加载设置
 async function loadSettings() {
     const data = await browser.storage.local.get("app_settings");
-    if (data.app_settings) {
-        appSettings = { ...appSettings, ...data.app_settings };
-    }
+    const stored = data.app_settings || {};
+    appSettings = { ...appSettings, ...stored };
 
     // 兜底与校验
     appSettings.maxCacheEntries = Math.max(1, parseInt(appSettings.maxCacheEntries) || 500);
     appSettings.maxRequestsPerSecond = Math.max(1, parseInt(appSettings.maxRequestsPerSecond) || 5);
     appSettings.maxConcurrentRequests = Math.max(1, parseInt(appSettings.maxConcurrentRequests) || 3);
     appSettings.briefingUrgency = Math.max(1, parseInt(appSettings.briefingUrgency) || 5);
+    appSettings.displayLanguage = stored.displayLanguage || appSettings.displayLanguage || "en";
+    appSettings.outputLanguage = stored.outputLanguage || appSettings.outputLanguage || "English";
 }
 
 // 处理总结请求
@@ -636,16 +640,17 @@ function parseEmailBody(part) {
 async function callAI(text, author, subject, emailDate) {
     const now = new Date().toLocaleString();
     const sentTime = emailDate ? new Date(emailDate).toLocaleString() : "Unknown";
+    const outputLang = appSettings.outputLanguage || "Simplified Chinese";
 
     // 1. System Prompt: 指令、角色、格式
     const systemPrompt = `
 You are a smart email assistant. Please analyze the email provided by the user and output a JSON object with the following schema:
 {
-    "summary": "string (Summarize the content in Simplified Chinese, < 100 words)",
+    "summary": "string (Summarize the content in ${outputLang}, < 100 words)",
     "tags": ["string (Short tags, 2-4 chars, e.g. 【发票】, 【会议】, 【Bug】, 【日报】)"],
-    "action_items": ["string (List of action items in Simplified Chinese)"],
+    "action_items": ["string (List of action items in ${outputLang})"],
     "urgency_score": number (1-10),
-    "urgency_reason": "string (Explain why this score was given in Simplified Chinese)"
+    "urgency_reason": "string (Explain why this score was given in ${outputLang})"
 }
 
 Urgency Score Rules (1-10):
@@ -664,7 +669,7 @@ Context Boosters:
 Constraint:
 - Output ONLY valid JSON.
 - Do not include markdown ' \`\`\`json ' fences.
-- Summary, action_items, and urgency_reason MUST be in Simplified Chinese.
+- Summary, action_items, and urgency_reason MUST be in ${outputLang}.
 `;
 
     // 2. User Prompt: 纯上下文信息
@@ -677,6 +682,8 @@ Subject: ${subject}
 
 Email Body:
 ${text}
+
+Use ${outputLang} for output.
 `;
 
     if (!appSettings.apiKey) {
