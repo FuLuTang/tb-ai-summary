@@ -37,6 +37,15 @@ const translations = {
         "actionItemsHeader": "Action Items",
         "briefingTitle": "Email Briefing",
         "briefingNoContent": "No briefing found. Please generate one first.",
+        "popupBriefingStarted": "Briefing task sent to background. Click 'View Existing Briefing' later.",
+        "popupBatchStarted": "Batch processing started for last {n} emails... Check logs or cache later.",
+        "logBatchStart": ">>> Batch request received: starting...",
+        "logBatchProgress": "Progress: {current} / {total} emails...",
+        "logBatchComplete": "<<< Batch summary complete!",
+        "logBatchError": "!!! Batch error: {error}",
+        "logSummaryLoading": "[{id}] {subject} Analyzing...",
+        "logSummarySuccess": "[{id}] {subject} Success",
+        "logSummaryError": "[{id}] {subject} Failed: {error}",
         "briefingGeneratedAt": "Generated at: "
     },
     "zh": {
@@ -77,6 +86,15 @@ const translations = {
         "actionItemsHeader": "待办事项",
         "briefingTitle": "邮件简报",
         "briefingNoContent": "暂无简报记录。请先在插件弹窗中点击“新简报”生成。",
+        "popupBriefingStarted": "任务已发送到后台。完成后点击“查看已有简报”查看结果。",
+        "popupBatchStarted": "已在后台开始批量处理最近 {n} 封邮件... 请稍后查看缓存或再次打开此窗口。",
+        "logBatchStart": ">>> 收到批量总结请求：开始处理...",
+        "logBatchProgress": "进度更新: 正在处理第 {current} / {total} 封...",
+        "logBatchComplete": "<<< 批量总结全部完成！",
+        "logBatchError": "!!! 批量处理出错: {error}",
+        "logSummaryLoading": "[{id}] {subject} 正在请求 AI 分析...",
+        "logSummarySuccess": "[{id}] {subject} 总结成功",
+        "logSummaryError": "[{id}] {subject} 总结失败: {error}",
         "briefingGeneratedAt": "生成时间: "
     },
     "fr": {
@@ -117,6 +135,15 @@ const translations = {
         "actionItemsHeader": "Actions requises",
         "briefingTitle": "Briefing e-mail",
         "briefingNoContent": "Aucun briefing trouvé. Veuillez en générer un d'abord.",
+        "popupBriefingStarted": "Tâche de briefing envoyée en arrière-plan. Cliquez sur 'Voir le briefing existant' plus tard.",
+        "popupBatchStarted": "Traitement par lot démarré pour les {n} derniers e-mails...",
+        "logBatchStart": ">>> Demande de lot reçue : démarrage...",
+        "logBatchProgress": "Progression : {current} / {total} e-mails...",
+        "logBatchComplete": "<<< Résumé par lot terminé !",
+        "logBatchError": "!!! Erreur de lot : {error}",
+        "logSummaryLoading": "[{id}] {subject} Analyse...",
+        "logSummarySuccess": "[{id}] {subject} Succès",
+        "logSummaryError": "[{id}] {subject} Échec : {error}",
         "briefingGeneratedAt": "Généré à : "
     },
     "ja": {

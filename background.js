@@ -171,7 +171,14 @@ async function handleBriefing() {
             return `${idx + 1}. ${email.subject || "No Subject"}`;
         }).join("\n");
 
-        const finalContent = briefingContent + "\n\n----------------\n[参考来源]\n" + sourceList;
+        const sourceHeaders = {
+            "English": "[Sources]",
+            "Simplified Chinese": "[参考来源]",
+            "French": "[Sources]",
+            "Japanese": "[ソース]"
+        };
+        const header = sourceHeaders[appSettings.outputLanguage] || "[Sources]";
+        const finalContent = briefingContent + `\n\n----------------\n${header}\n` + sourceList;
 
         // 7. Save Result
         await saveBriefing(finalContent);
@@ -647,7 +654,7 @@ async function callAI(text, author, subject, emailDate) {
 You are a smart email assistant. Please analyze the email provided by the user and output a JSON object with the following schema:
 {
     "summary": "string (Summarize the content in ${outputLang}, < 100 words)",
-    "tags": ["string (Short tags, 2-4 chars, e.g. 【发票】, 【会议】, 【Bug】, 【日报】)"],
+    "tags": ["string (Short tags, 2-4 words in ${outputLang}, e.g. [Invoice], [Meeting])"],
     "action_items": ["string (List of action items in ${outputLang})"],
     "urgency_score": number (1-10),
     "urgency_reason": "string (Explain why this score was given in ${outputLang})"
@@ -669,7 +676,7 @@ Context Boosters:
 Constraint:
 - Output ONLY valid JSON.
 - Do not include markdown ' \`\`\`json ' fences.
-- Summary, action_items, and urgency_reason MUST be in ${outputLang}.
+- Summary, tags, action_items, and urgency_reason MUST be in ${outputLang}.
 `;
 
     // 2. User Prompt: 纯上下文信息

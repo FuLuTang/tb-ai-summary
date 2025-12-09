@@ -116,7 +116,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // 6. 一键总结邮件 (带数量)
-    document.getElementById('batchProcessBtn').addEventListener('click', () => {
+    document.getElementById('batchProcessBtn').addEventListener('click', async () => {
         console.log("Batch process button clicked");
 
         const countInput = document.getElementById('batchCount');
@@ -141,8 +141,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             alert("发送请求失败: " + err.message);
         });
 
-        const resultDiv = document.getElementById('result');
-        resultDiv.textContent = `已在后台开始批量处理最近 ${count} 封邮件... 请稍后查看缓存或再次打开此窗口。`;
+        const settings = await browser.storage.local.get("app_settings");
+        const lang = (settings.app_settings && settings.app_settings.displayLanguage) ? settings.app_settings.displayLanguage : "en";
+        const msg = getText("popupBatchStarted", lang).replace("{n}", count);
+        resultDiv.textContent = msg;
         resultDiv.className = "success";
     });
 
@@ -158,8 +160,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         browser.runtime.sendMessage({ type: "START_BRIEFING" });
 
         // 简单的 UI 反馈
-        setTimeout(() => {
-            resultDiv.textContent = "任务已发送到后台。完成后点击“查看已有简报”查看结果。";
+        setTimeout(async () => {
+            const settings = await browser.storage.local.get("app_settings");
+            const lang = (settings.app_settings && settings.app_settings.displayLanguage) ? settings.app_settings.displayLanguage : "en";
+            resultDiv.textContent = getText("popupBriefingStarted", lang);
             resultDiv.className = "success";
         }, 1000);
     });

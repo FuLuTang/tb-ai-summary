@@ -171,24 +171,33 @@ function updateUIText(lang = "en") {
 
 // 监听广播消息
 browser.runtime.onMessage.addListener((message) => {
+    const lang = document.getElementById('displayLanguage').value || "en";
+
     if (message.type === "BATCH_START") {
-        appendLog(">>> 收到批量总结请求：开始处理最近 40 封邮件...");
+        appendLog(getText("logBatchStart", lang));
     } else if (message.type === "BATCH_PROGRESS") {
         const { current, total } = message.payload;
-        appendLog(`进度更新: 正在处理第 ${current} / ${total} 封...`);
+        const msg = getText("logBatchProgress", lang)
+            .replace("{current}", current)
+            .replace("{total}", total);
+        appendLog(msg);
     } else if (message.type === "BATCH_COMPLETE") {
-        appendLog("<<< 批量总结全部完成！");
+        appendLog(getText("logBatchComplete", lang));
     } else if (message.type === "BATCH_ERROR") {
-        appendLog(`!!! 批量处理出错: ${message.payload.error}`);
+        const msg = getText("logBatchError", lang).replace("{error}", message.payload.error);
+        appendLog(msg);
     } else if (message.type === "SUMMARY_UPDATE") {
         const { headerMessageId, status, error, subject } = message.payload;
         const subjectText = subject ? `<${subject}>` : '';
+
+        let msg = "";
         if (status === 'loading') {
-            appendLog(`[${headerMessageId}] ${subjectText} 正在请求 AI 分析...`);
+            msg = getText("logSummaryLoading", lang).replace("{id}", headerMessageId).replace("{subject}", subjectText);
         } else if (status === 'success') {
-            appendLog(`[${headerMessageId}] ${subjectText} 总结成功`);
+            msg = getText("logSummarySuccess", lang).replace("{id}", headerMessageId).replace("{subject}", subjectText);
         } else if (status === 'error') {
-            appendLog(`[${headerMessageId}] ${subjectText} 总结失败: ${error}`);
+            msg = getText("logSummaryError", lang).replace("{id}", headerMessageId).replace("{subject}", subjectText).replace("{error}", error);
         }
+        if (msg) appendLog(msg);
     }
 });

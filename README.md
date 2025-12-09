@@ -1,65 +1,72 @@
 # Thunderbird AI Summary Extension
 
-## 🚀 如何在 Thunderbird 中临时安装 (调试模式)
+[English](README.md) | [中文](README.zh-CN.md) | [Dev Guide](MODIFICATION_GUIDE.md)
 
-如果你想测试或开发此扩展，可以通过 Thunderbird 的调试功能临时加载它。
+## What is this?
 
-1.  **打开 Thunderbird**。
-2.  点击右上角的菜单按钮 (≡)，选择 **“附加组件和主题” (Add-ons and Themes)**。
-3.  在附加组件管理器页面的右上角，点击 **齿轮图标 (⚙️)**。
-4.  选择 **“调试附加组件” (Debug Add-ons)**。
-5.  在打开的调试页面中，点击 **“临时载入附加组件...” (Load Temporary Add-on...)** 按钮。
-6.  在文件选择对话框中，导航到本项目的目录，并选择 **`manifest.json`** 文件。
-7.  点击“打开”。
+A Thunderbird extension that allows you to summarize emails using AI.
+It can summarize a **single email**, add **tags**, **urgency score**, auto generate **mount of summaries on one click**, and generate a **smart briefing** by your existing email summaries cached in local storage.
 
-现在，你应该能在 Thunderbird 的工具栏上看到扩展的图标了。
+## 🚀 How to Install Temporarily in Thunderbird (Debug Mode)
 
-> **注意**: 临时加载的扩展在关闭 Thunderbird 后会被移除。下次启动时需要重复上述步骤。
+If you want to test or develop this extension, you can load it temporarily via Thunderbird's debug features.
+
+1.  **Open Thunderbird**.
+2.  Click the menu button (≡) in the top-right corner, then select **"Add-ons and Themes"**.
+3.  On the Add-ons Manager page, click the **gear icon (⚙️)** in the top-right corner.
+4.  Select **"Debug Add-ons"**.
+5.  On the debug page that opens, click the **"Load Temporary Add-on..."** button.
+6.  Navigate to this project's directory in the file selection dialog and select the **`manifest.json`** file.
+7.  Click "Open".
+
+You should now see the extension icon in the Thunderbird toolbar.
+
+> **Note**: Temporarily loaded extensions are removed when Thunderbird is closed. You will need to repeat these steps the next time you launch it.
 
 ---
 
-## 🛠 运行逻辑详解
+## 🛠 Internal Logic Explained
 
-此扩展主要由两部分组成：**Popup (前端界面)** 和 **Background (后台服务)**。它们通过消息机制进行通信。
+This extension consists of two main parts: **Popup (Frontend UI)** and **Background (Backend Service)**. They communicate via messaging.
 
-### 1. 核心架构
+### 1. Core Architecture
 
 *   **Popup (`popup.html` / `popup.js`)**:
-    *   **职责**: 负责与用户交互，显示按钮、进度条和最终的总结结果。
-    *   **交互**: 当用户点击按钮（如“开始总结”、“一键总结邮件”）时，它会向后台发送消息（`sendMessage`）。
-    *   **监听**: 它会监听来自后台的实时消息（如进度更新、错误提示），并动态更新 UI。
+    *   **Role**: Handles user interaction, displaying buttons, progress bars, and the final summary results.
+    *   **Interaction**: When the user clicks a button (e.g., "Summarize", "Batch Summarize"), it sends a message (`sendMessage`) to the background.
+    *   **Listening**: It listens for real-time messages from the background (e.g., progress updates, error alerts) and dynamically updates the UI.
 
 *   **Background (`background.js`)**:
-    *   **职责**: 处理核心逻辑，包括调用 Thunderbird API 读取邮件、调用 OpenAI API 生成总结、以及管理缓存。
-    *   **持久化**: 使用 `browser.storage.local` 存储 API 设置和邮件总结缓存，避免重复消耗 Token。
+    *   **Role**: Handles core logic, including calling the Thunderbird API to read emails, calling the OpenAI API to generate summaries, and managing caching.
+    *   **Persistence**: Uses `browser.storage.local` to store API settings and email summary caches to avoid wasting tokens.
 
-### 2. 功能逻辑拆解
+### 2. Feature Logic Breakdown
 
-#### A. 单封邮件总结
-1.  **触发**: 用户在阅读邮件时点击扩展图标，Popup 初始化并获取当前显示的邮件 ID。
-2.  **请求**: 用户点击“开始总结”，Popup 发送 `START_SUMMARY` 消息。
-3.  **处理**:
-    *   后台检查是否存在缓存。如果有且未强制刷新，直接返回缓存结果。
-    *   如果没有缓存，后台调用 `browser.messages.getFull` 获取邮件全文。
-    *   解析邮件正文（去除 HTML 标签）。
-    *   构建 Prompt（包含发件人、主题、正文），调用 OpenAI API。
-4.  **响应**: AI 返回 JSON 格式的总结（包含摘要、标签、紧迫度评分）。后台将结果存入缓存，并广播 `SUMMARY_UPDATE` 消息给 Popup 进行渲染。
+#### A. Single Email Summary
+1.  **Trigger**: User clicks the extension icon while reading an email. The Popup initializes and gets the currently displayed message ID.
+2.  **Request**: User clicks "Summarize", and the Popup sends a `START_SUMMARY` message.
+3.  **Process**:
+    *   Background checks for existing cache. If it exists and force refresh is not requested, the cached result is returned directly.
+    *   If no cache, the background calls `browser.messages.getFull` to get the full email text.
+    *   Parses the email body (removes HTML tags).
+    *   Constructs a Prompt (including sender, subject, body) and calls the OpenAI API.
+4.  **Response**: AI returns a summary in JSON format (including summary, tags, urgency score). Background saves the result to cache and broadcasts a `SUMMARY_UPDATE` message to the Popup for rendering.
 
-#### B. 一键批量总结 (Batch Summary)
-1.  **触发**: 用户在 Popup 中输入数量（如 40）并点击“一键总结邮件”。
-2.  **获取邮件**:
-    *   后台遍历所有账户的收件箱 (`inbox`)。
-    *   查询最近 N 天的邮件，直到收集到目标数量（如 40 封）。
-3.  **并发队列**:
-    *   为了防止触发 API 速率限制，后台使用令牌桶算法 (`createRateLimitedRunner`) 控制并发请求（默认每秒 5 个请求）。
-    *   对每封邮件独立执行“单封邮件总结”的逻辑。
-4.  **反馈**: 每完成一封，后台发送 `BATCH_PROGRESS` 消息，Popup 更新进度提示。
+#### B. Batch Summary
+1.  **Trigger**: User enters a quantity (e.g., 40) in the Popup and clicks "Batch Summarize".
+2.  **Fetch Emails**:
+    *   Background iterates through the inboxes (`inbox`) of all accounts.
+    *   Queries emails from the last N days until the target quantity (e.g., 40 emails) is collected.
+3.  **Concurrent Queue**:
+    *   To prevent hitting API rate limits, the background uses a token bucket algorithm (`createRateLimitedRunner`) to control concurrent requests (default 5 requests per second).
+    *   Executes the "Single Email Summary" logic independently for each email.
+4.  **Feedback**: Upon completion of each email, the background sends a `BATCH_PROGRESS` message, and the Popup updates the progress indicator.
 
-#### C. 智能简报 (Briefing)
-1.  **触发**: 用户点击“新简报”。
-2.  **筛选**: 后台从本地缓存中读取过去 30 天的所有总结记录。
-3.  **过滤**: 筛选出 **紧迫度 (Urgency Score) > 6** 的高优先级邮件。
-4.  **生成**:
-    *   将这些高优先级邮件的摘要拼接成一个新的 Prompt。
-    *   要求 AI 扮演“行政助理”，生成一份简明扼要的日报/周报。
-5.  **展示**: 生成结果保存到本地，用户点击“查看已有简报”时，打开一个新的 Tab (`briefing.html`) 展示 Markdown 渲染后的简报。
+#### C. Smart Briefing
+1.  **Trigger**: User clicks "New Briefing".
+2.  **Filter**: Background reads all summary records from the last 30 days from the local cache.
+3.  **Select**: Filters for high-priority emails with **Urgency Score > 6**.
+4.  **Generate**:
+    *   Concatenates summaries of these high-priority emails into a new Prompt.
+    *   Asks the AI to act as an "Executive Assistant" and generate a concise daily/weekly report.
+5.  **Display**: The generated result is saved locally. When the user clicks "View Existing Briefing", a new Tab (`briefing.html`) is opened to display the Markdown-rendered briefing.
