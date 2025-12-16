@@ -159,8 +159,17 @@ async function handleBriefing() {
         }
 
         // 4. Construct Prompt
+        // Sort by Date Ascending (Oldest -> Newest) so the AI sees the timeline correctly
+        highImportanceEmails.sort((a, b) => {
+            const dateA = new Date(a.date || 0);
+            const dateB = new Date(b.date || 0);
+            return dateA - dateB;
+        });
+
         const summaries = highImportanceEmails.map((email, idx) => {
-            return `${idx + 1}. [Urgency: ${email.urgency_score}] ${email.summary} (Tags: ${email.tags ? email.tags.join(", ") : ""})`;
+            // Include date in the summary line for AI context
+            const dateStr = email.date ? new Date(email.date).toLocaleString() : "Unknown Date";
+            return `${idx + 1}. [${dateStr}] [Urgency: ${email.urgency_score}] ${email.summary} (Tags: ${email.tags ? email.tags.join(", ") : ""})`;
         }).join("\n");
 
         // 5. Call AI
@@ -192,26 +201,38 @@ async function handleBriefing() {
 
 async function callAIBriefing(summaries) {
     const outputLang = appSettings.outputLanguage || "Simplified Chinese";
+    const now = new Date().toLocaleString(); // Current Time
+
     const systemPrompt = `
 You are an executive assistant. Your job is to summarize a list of high-importance emails into a concise briefing.
-The user will provide a list of email summaries.
+The user will provide a list of email summaries with their timestamps.
 Please generate a "New Briefing" (新简报) in ${outputLang}.
+
+**IMPORTANT INSTRUCTION**:
+- **Analyze based on the Current Time**: ${now}.
+- If an item has a deadline or date, interpret it relative to Current Time (e.g. "Tomorrow", "Next Week").
 
 Requirements:
 1.  **Overview**: Start with a 1-sentence overview of the key themes.
-2.  **Key Items**: Group related emails if possible, or list the most critical ones. Use bullet points.
-3.  **Actionable**: Highlight any immediate actions required.
+2.  **Key Items / Reminders**: Group related emails or list critical ones.
+    *   **SORTING RULE**: You MUST list these items in **Chronological Order** (Earliest deadline/event FIRST, Later ones LAST).
+    *   If an item has no specific future date, put it after the timed items.
+3.  **Actionable**: Highlight immediate actions.
 4.  **Tone**: Professional, concise, and clear.
-5.  **Format**: Plain text (no Markdown bolding/headers if possible, just clean formatting).
+5.  **Format**: Plain text (clean formatting, bullet points).
 `;
 
     const userPrompt = `
-Here are the summaries of high-importance emails from the last month:
+Current Time: ${now}
+
+Here are the summaries of high-importance emails from the last month (Sorted Oldest -> Newest):
 
 ${summaries}
 
 Please write the briefing. Use ${outputLang} for output.
+在最开始的部分出“时间线”板块，把事件按照时间顺序排列（包括过去和未来）（指的是执行时间）。
 `;
+
     /// 简报代码——————————————————
     if (!appSettings.apiKey) {
         throw new Error("未配置 API Key");
