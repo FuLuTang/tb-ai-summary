@@ -342,6 +342,24 @@ async function handleStartSummary(payload) {
         let fullMessage = await browser.messages.getFull(messageId);
         let emailContent = parseEmailBody(fullMessage);
 
+        // Fallback: 如果常规解析失败，尝试使用 getRaw 获取原始内容并手动解析
+        // 这种情况常见于某些 Outlook 嵌套回复，getFull 返回的 parts 中 body 为空
+        if ((!emailContent || emailContent.trim() === "") && browser.messages.getRaw) {
+            console.log("Standard parsing failed, attempting raw content fallback...");
+            try {
+                const raw = await browser.messages.getRaw(messageId);
+                if (raw) {
+                    const rawContent = parseRawEmailContent(raw);
+                    if (rawContent && rawContent.trim() !== "") {
+                        emailContent = rawContent;
+                        console.log("Raw content fallback successful.");
+                    }
+                }
+            } catch (rawErr) {
+                console.warn("Raw content fallback failed:", rawErr);
+            }
+        }
+
         if (!emailContent || emailContent.trim() === "") {
             throw new Error("无法提取到邮件正文，可能是纯图片或特殊格式。");
         }
@@ -649,20 +667,101 @@ async function clearCacheEntries() {
 // === AI 核心逻辑 ===
 
 function parseEmailBody(part) {
-    let str = "";
+    if (!part) return "";
+
+    const type = (part.contentType || "").toLowerCase();
+
+    // 1. 处理 multipart/alternative
+    // 采用“候选 fallback”策略：优先取富文本，如果结果为空，则回退到纯文本
+    if (type.includes("multipart/alternative") && part.parts) {
+        let candidates = [];
+
+        // A. 优先候选: HTML 或 Related (富文本)
+        const richPart = part.parts.find(p => {
+            const t = (p.contentType || "").toLowerCase();
+            return t.includes("text/html") || t.includes("multipart/related");
+        });
+        if (richPart) candidates.push(richPart);
+
+        // B. 次优候选: 纯文本
+        const plainPart = part.parts.find(p => {
+            const t = (p.contentType || "").toLowerCase();
+            return t.includes("text/plain");
+        });
+        if (plainPart) candidates.push(plainPart);
+
+        // C. 其他候选 (兜底)
+        part.parts.forEach(p => {
+            if (p !== richPart && p !== plainPart) candidates.push(p);
+        });
+
+        // 按优先级尝试提取，直到获得非空内容
+        for (const candidate of candidates) {
+            const content = parseEmailBody(candidate);
+            if (content && content.trim().length > 0) {
+                return content;
+            }
+        }
+        return ""; // 所有部分都无法提取有效文本
+    }
+
+    // 2. 如果是叶子节点 (包含 body)
     if (part.body && typeof part.body === "string") {
-        if (part.contentType && part.contentType.includes("html")) {
-            str += part.body.replace(/<[^>]*>?/gm, ' ');
-        } else {
-            str += part.body;
+        // 策略: 只要是 text/* 类型，或者是空类型(默认text)，都尝试提取
+        // 特殊处理 HTML
+        if (type.includes("html")) { // 匹配 text/html, application/xhtml+xml 等
+            let text = part.body;
+
+            // 预处理：移除干扰标签
+            text = text.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+                .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+                .replace(/<!--[\s\S]*?-->/g, '');
+
+            // 格式化：将块级标签转换为换行符
+            text = text.replace(/<br\s*\/?>/gi, '\n')
+                .replace(/<\/p>/gi, '\n')
+                .replace(/<\/div>/gi, '\n')
+                .replace(/<\/tr>/gi, '\n')
+                .replace(/<\/h[1-6]>/gi, '\n');
+
+            // 移除所有剩余 HTML 标签
+            text = text.replace(/<[^>]*>?/gm, ' ');
+
+            // 解码实体
+            text = text.replace(/&nbsp;/g, ' ')
+                .replace(/&amp;/g, '&')
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&quot;/g, '"')
+                .replace(/&#39;/g, "'");
+
+            return text.replace(/[ \t\r\f]+/g, ' ') // 压缩水平空白
+                .replace(/(\n\s*)+/g, '\n')  // 压缩垂直空白
+                .trim();
+        }
+        // 宽松匹配: 空类型 OR 任何 text/ 类型
+        else if (type === "" || type.includes("text/")) {
+            return part.body.trim();
+        }
+        else {
+            // 其他类型 (如 image/...) 忽略
+            return "";
         }
     }
+
+    // 3. 处理其他容器类型 (如 multipart/mixed, multipart/related, message/rfc822)
     if (part.parts) {
+        let str = "";
         for (let subPart of part.parts) {
-            str += parseEmailBody(subPart);
+            let content = parseEmailBody(subPart);
+            if (content && content.trim().length > 0) {
+                str += content + "\n";
+            }
         }
+        return str.trim();
     }
-    return str.replace(/\s+/g, ' ').trim();
+
+    return "";
 }
 
 async function callAI(text, author, subject, emailDate) {
@@ -764,3 +863,4 @@ Use ${outputLang} for output.
         };
     }
 }
+

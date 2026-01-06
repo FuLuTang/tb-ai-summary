@@ -20,6 +20,7 @@
     ],
     "background": {
         "scripts": [
+            "raw_parser.js",
             "background.js"
         ]
     },
