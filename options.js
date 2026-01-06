@@ -9,6 +9,27 @@ if (displayLanguageSelect) {
     });
 }
 
+// Tab Switching Logic
+document.querySelectorAll('.tab-btn').forEach(button => {
+    button.addEventListener('click', () => {
+        const tabId = button.getAttribute('data-tab');
+
+        // Remove active class from all buttons and contents
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+        // Add active class to clicked button and target content
+        button.classList.add('active');
+        document.getElementById(tabId).classList.add('active');
+    });
+});
+
+// Link the AI tab save button to the main save function
+const saveBtnAI = document.getElementById('saveBtnAI');
+if (saveBtnAI) {
+    saveBtnAI.addEventListener('click', saveOptions);
+}
+
 function restoreOptions() {
     browser.storage.local.get("app_settings").then((res) => {
         const settings = res.app_settings || {
@@ -16,9 +37,10 @@ function restoreOptions() {
             apiKey: "",
             apiUrl: "https://api.openai.com/v1/chat/completions",
             model: "gpt-4o-mini",
-            temperature: 0.2,
+            temperature: 1.0,
             maxRequestsPerSecond: 5,
-            maxConcurrentRequests: 3,
+            maxConcurrentRequests: 20,
+            popupWidth: 400,
             briefingUrgency: 5,
             displayLanguage: "en",
             outputLanguage: "English"
@@ -31,9 +53,10 @@ function restoreOptions() {
         document.getElementById('apiKey').value = settings.apiKey || "";
         document.getElementById('apiUrl').value = settings.apiUrl || "https://api.openai.com/v1/chat/completions";
         document.getElementById('model').value = settings.model || "gpt-4o-mini";
-        document.getElementById('temperature').value = settings.temperature !== undefined ? settings.temperature : 0.2;
+        document.getElementById('temperature').value = settings.temperature !== undefined ? settings.temperature : 1.0;
         document.getElementById('maxRps').value = settings.maxRequestsPerSecond !== undefined ? settings.maxRequestsPerSecond : 5;
-        document.getElementById('maxConcurrent').value = settings.maxConcurrentRequests !== undefined ? settings.maxConcurrentRequests : 3;
+        document.getElementById('maxConcurrent').value = settings.maxConcurrentRequests !== undefined ? settings.maxConcurrentRequests : 20;
+        document.getElementById('popupWidth').value = settings.popupWidth !== undefined ? settings.popupWidth : 400;
         document.getElementById('briefingUrgency').value = settings.briefingUrgency !== undefined ? settings.briefingUrgency : 5;
     });
 }
@@ -46,6 +69,7 @@ function saveOptions() {
     const temperature = parseFloat(document.getElementById('temperature').value);
     const maxRps = parseInt(document.getElementById('maxRps').value);
     const maxConcurrent = parseInt(document.getElementById('maxConcurrent').value);
+    const popupWidth = parseInt(document.getElementById('popupWidth').value);
 
     const briefingUrgency = parseInt(document.getElementById('briefingUrgency').value);
     const displayLanguage = document.getElementById('displayLanguage').value;
@@ -76,9 +100,10 @@ function saveOptions() {
         apiKey: apiKey,
         apiUrl: apiUrl || "https://api.openai.com/v1/chat/completions",
         model: model || "gpt-4o-mini",
-        temperature: isNaN(temperature) ? 0.2 : temperature,
+        temperature: isNaN(temperature) ? 1.0 : temperature,
         maxRequestsPerSecond: maxRps,
         maxConcurrentRequests: maxConcurrent,
+        popupWidth: isNaN(popupWidth) ? 400 : popupWidth,
         briefingUrgency: isNaN(briefingUrgency) ? 5 : briefingUrgency,
         displayLanguage: displayLanguage,
         outputLanguage: outputLanguage
@@ -156,11 +181,17 @@ function updateUIText(lang = "en") {
         ["maxConcurrentDesc", "maxConcurrentDesc"],
         ["maxCacheLabel", "maxCacheLabel"],
         ["maxCacheDesc", "maxCacheDesc"],
+        ["popupWidthLabel", "popupWidthLabel"],
+        ["popupWidthDesc", "popupWidthDesc"],
         ["briefingUrgencyLabel", "briefingUrgencyLabel"],
         ["briefingUrgencyDesc", "briefingUrgencyDesc"],
         ["saveBtn", "saveBtn"],
+        ["saveBtnAI", "saveBtn"],
         ["clearBtn", "clearBtn"],
-        ["logTitle", "logTitle"]
+        ["logTitle", "logTitle"],
+        ["tabGeneral", "tabGeneral"],
+        ["tabAi", "tabAi"],
+        ["tabLog", "tabLog"]
     ];
 
     textMap.forEach(([id, key]) => {

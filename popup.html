@@ -5,144 +5,11 @@
     <meta charset="utf-8">
     <style>
         body {
-            width: 300px;
-            padding: 10px;
-            font-family: sans-serif;
-        }
-
-        button {
-            width: 100%;
-            padding: 10px;
-            background: #007bff;
-            color: white;
-            border: none;
-            cursor: pointer;
-        }
-
-        button:hover {
-            background: #0056b3;
-        }
-
-        #result {
-            margin-top: 10px;
-            white-space: pre-wrap;
-            font-size: 14px;
-            color: #333;
-        }
-
-        .error {
-            color: red;
-        }
-
-        /* New Styles for JSON UI */
-        .badge {
-            display: inline-block;
-            padding: 2px 8px;
-            margin-right: 5px;
-            margin-bottom: 5px;
-            border-radius: 12px;
-            background-color: #e0f7fa;
-            color: #006064;
-            font-size: 12px;
-            font-weight: 500;
-        }
-
-        .urgency {
-            font-weight: bold;
-            margin-bottom: 10px;
-            display: block;
-        }
-
-        .urgency-high {
-            color: #d32f2f;
-        }
-
-        .urgency-medium {
-            color: #f57c00;
-        }
-
-        .urgency-low {
-            color: #388e3c;
-        }
-
-        .urgency-reason {
-            font-size: 12px;
-            font-style: italic;
-            color: #666;
-            margin-left: 5px;
-            font-weight: normal;
-        }
-
-        .action-list {
-            list-style-type: none;
-            padding-left: 0;
-            margin-top: 5px;
-        }
-
-        .action-item {
-            cursor: pointer;
-            user-select: none;
-            padding: 2px 0;
-            display: flex;
-            align-items: flex-start;
-        }
-
-        .action-item::before {
-            content: '☐';
-            margin-right: 8px;
-            font-weight: bold;
-        }
-
-        .action-item.done {
-            text-decoration: line-through;
-            color: #888;
-        }
-
-        .action-item.done::before {
-            content: '☑';
-        }
-
-        h4 {
-            margin: 10px 0 5px 0;
-            font-size: 14px;
-            color: #555;
-        }
-
-        /* Settings UI */
-        .header-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-
-        .settings-btn {
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-size: 18px;
-            color: #666;
-            padding: 0 5px;
-            width: auto;
-        }
-
-        .settings-btn:hover {
-            color: #333;
-            background: none;
-        }
-    </style>
-</head>
-
-<!DOCTYPE html>
-<html>
-
-<head>
-    <meta charset="utf-8">
-    <style>
-        body {
             width: 400px;
-            padding: 10px;
-            font-family: sans-serif;
+            padding: 15px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #ffffff;
+            color: #333;
         }
 
         button {
@@ -151,104 +18,191 @@
             background: #007bff;
             color: white;
             border: none;
+            border-radius: 4px;
             cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.2s;
         }
 
         button:hover {
             background: #0056b3;
         }
 
+        button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+
         #result {
-            margin-top: 10px;
+            margin-top: 15px;
             white-space: pre-wrap;
             font-size: 14px;
-            color: #333;
+            line-height: 1.5;
+            color: #2c3e50;
         }
 
         .error {
-            color: red;
+            color: #d32f2f;
+            background-color: #ffebee;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
         }
 
-        /* New Styles for JSON UI */
+        .success {
+            color: #2e7d32;
+            background-color: #e8f5e9;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+
+        /* JSON UI Styles */
         .badge {
             display: inline-block;
-            padding: 2px 8px;
-            margin-right: 5px;
-            margin-bottom: 5px;
+            padding: 3px 10px;
+            margin-right: 6px;
+            margin-bottom: 6px;
             border-radius: 12px;
-            background-color: #e0f7fa;
-            color: #006064;
-            font-size: 12px;
-            font-weight: 500;
+            background-color: #e3f2fd;
+            color: #1976d2;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
         }
 
-        .urgency {
-            font-weight: bold;
-            margin-bottom: 10px;
-            display: block;
+        .urgency-container {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 15px;
+            border-left: 4px solid #ddd;
         }
 
-        .urgency-high {
-            color: #d32f2f;
+        .urgency-container.high {
+            border-left-color: #d32f2f;
+            background-color: #fff5f5;
         }
 
-        .urgency-medium {
-            color: #f57c00;
+        .urgency-container.medium {
+            border-left-color: #f57c00;
+            background-color: #fffaf0;
         }
 
-        .urgency-low {
-            color: #388e3c;
+        .urgency-container.low {
+            border-left-color: #388e3c;
+            background-color: #f0fff4;
+        }
+
+        .urgency-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .urgency-label {
+            font-weight: 700;
+            font-size: 13px;
+            color: #444;
+        }
+
+        .urgency-score {
+            font-weight: 800;
+            font-size: 16px;
+        }
+
+        /* Progress Bar for Urgency */
+        .urgency-bar-bg {
+            height: 6px;
+            background-color: #e9ecef;
+            border-radius: 3px;
+            width: 100%;
+            margin-bottom: 8px;
+            overflow: hidden;
+        }
+
+        .urgency-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.5s ease-out;
+        }
+
+        .high .urgency-bar-fill {
+            background-color: #d32f2f;
+        }
+
+        .medium .urgency-bar-fill {
+            background-color: #f57c00;
+        }
+
+        .low .urgency-bar-fill {
+            background-color: #388e3c;
         }
 
         .urgency-reason {
             font-size: 12px;
-            font-style: italic;
             color: #666;
-            margin-left: 5px;
-            font-weight: normal;
+            line-height: 1.4;
+            display: block;
         }
 
         .action-list {
             list-style-type: none;
             padding-left: 0;
-            margin-top: 5px;
+            margin-top: 8px;
         }
 
         .action-item {
             cursor: pointer;
             user-select: none;
-            padding: 2px 0;
+            padding: 6px 0;
             display: flex;
             align-items: flex-start;
+            border-bottom: 1px solid #f1f1f1;
+        }
+
+        .action-item:last-child {
+            border-bottom: none;
         }
 
         .action-item::before {
             content: '☐';
-            margin-right: 8px;
+            margin-right: 10px;
             font-weight: bold;
+            color: #007bff;
         }
 
         .action-item.done {
             text-decoration: line-through;
-            color: #888;
+            color: #bdc3c7;
         }
 
         .action-item.done::before {
             content: '☑';
+            color: #2ecc71;
         }
 
         h4 {
-            margin: 10px 0 5px 0;
-            font-size: 14px;
-            color: #555;
+            margin: 15px 0 8px 0;
+            font-size: 13px;
+            font-weight: 600;
+            color: #7f8c8d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 3px;
         }
 
-        /* Settings UI */
+        /* Header UI */
         .header-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
         }
 
         .settings-btn {
@@ -256,35 +210,70 @@
             border: none;
             cursor: pointer;
             font-size: 18px;
-            color: #666;
-            padding: 0 5px;
+            color: #95a5a6;
+            padding: 4px;
             width: auto;
+            transition: color 0.2s;
         }
 
         .settings-btn:hover {
-            color: #333;
-            background: none;
+            color: #34495e;
+            background: #f8f9fa;
+        }
+
+        /* Batch controls */
+        .batch-container {
+            margin-top: 10px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .batch-input-group {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            background: #f8f9fa;
+            padding: 0 8px;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+        }
+
+        input[type="number"] {
+            width: 100%;
+            padding: 5px;
+            border: none;
+            background: transparent;
+            font-size: 13px;
+            color: #495057;
+        }
+
+        input:focus {
+            outline: none;
         }
     </style>
 </head>
 
 <body>
     <div class="header-row">
-        <h3 id="popupTitle" style="margin:0;">Email AI Summary</h3>
+        <h3 id="popupTitle" style="margin:0; font-size: 16px; color: #2c3e50;">Email AI Summary</h3>
         <button id="settingsBtn" class="settings-btn" title="设置">⚙️</button>
     </div>
 
     <button id="summarizeBtn">Summarize</button>
-    <div style="margin-top: 10px; display: flex; gap: 5px;">
+
+    <div class="batch-container">
         <button id="batchProcessBtn" style="background-color: #17a2b8; flex: 2;">Batch Summarize</button>
-        <div style="flex: 1; display: flex; align-items: center; gap: 2px;">
-            <label id="batchCountLabel" for="batchCount" style="font-size: 12px; white-space: nowrap;">Count:</label>
-            <input type="number" id="batchCount" value="40" min="1" max="150"
-                style="width: 100%; padding: 5px; border: 1px solid #ccc; border-radius: 4px;">
+        <div class="batch-input-group">
+            <label id="batchCountLabel" for="batchCount"
+                style="font-size: 11px; white-space: nowrap; color: #6c757d;">Count:</label>
+            <input type="number" id="batchCount" value="40" min="1" max="150">
         </div>
     </div>
+
     <button id="batchSummarizeBtn" style="margin-top: 10px; background-color: #28a745;">New Briefing</button>
     <button id="viewBriefingBtn" style="margin-top: 10px; background-color: #6c757d;">View Existing Briefing</button>
+
     <div id="result"></div>
 
     <script src="i18n.js"></script>

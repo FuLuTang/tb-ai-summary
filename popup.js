@@ -11,6 +11,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Load language
     const settings = await browser.storage.local.get("app_settings");
     const lang = (settings.app_settings && settings.app_settings.displayLanguage) ? settings.app_settings.displayLanguage : "en";
+
+    // Apply dynamic width
+    const popupWidth = (settings.app_settings && settings.app_settings.popupWidth) ? settings.app_settings.popupWidth : 400;
+    document.body.style.width = popupWidth + "px";
+
     updatePopupUIText(lang);
 
     const resultDiv = document.getElementById('result');
@@ -203,44 +208,72 @@ function updateUI(state, lang = "en") {
 function renderResult(container, data, lang = "en") {
     container.textContent = ""; // Clear previous content
 
-    // 1. Urgency
-    const urgencyDiv = document.createElement('div');
-    urgencyDiv.className = "urgency";
+    // 1. Urgency Container (The Meter)
+    const urgencyContainer = document.createElement('div');
+    urgencyContainer.className = "urgency-container";
 
     let emoji = "🟢";
-    let colorClass = "urgency-low";
+    let statusClass = "low";
     if (data.urgency_score > 7) {
         emoji = "🔴";
-        colorClass = "urgency-high";
+        statusClass = "high";
     } else if (data.urgency_score >= 4) {
         emoji = "🟡";
-        colorClass = "urgency-medium";
+        statusClass = "medium";
+    }
+    urgencyContainer.classList.add(statusClass);
+
+    // Header: Label and Score
+    const header = document.createElement('div');
+    header.className = "urgency-header";
+
+    const label = document.createElement('span');
+    label.className = "urgency-label";
+    label.textContent = `${emoji} ${getText("urgency", lang)}`;
+
+    const score = document.createElement('span');
+    score.className = "urgency-score";
+    score.classList.add(`urgency-${statusClass}`);
+    score.textContent = `${data.urgency_score}/10`;
+
+    header.appendChild(label);
+    header.appendChild(score);
+    urgencyContainer.appendChild(header);
+
+    // Progress Bar
+    const barBg = document.createElement('div');
+    barBg.className = "urgency-bar-bg";
+    const barFill = document.createElement('div');
+    barFill.className = "urgency-bar-fill";
+    barFill.style.width = (data.urgency_score * 10) + "%";
+    barBg.appendChild(barFill);
+    urgencyContainer.appendChild(barBg);
+
+    // Reason (Standalone block)
+    if (data.urgency_reason) {
+        const reason = document.createElement('span');
+        reason.className = "urgency-reason";
+        reason.textContent = data.urgency_reason;
+        urgencyContainer.appendChild(reason);
     }
 
-    const urgencySpan = document.createElement('span');
-    urgencySpan.className = colorClass;
-    urgencySpan.textContent = `${emoji} ${getText("urgency", lang)}: ${data.urgency_score}/10`;
-    urgencyDiv.appendChild(urgencySpan);
+    container.appendChild(urgencyContainer);
 
-    if (data.urgency_score > 7 && data.urgency_reason) {
-        const reasonSpan = document.createElement('span');
-        reasonSpan.className = "urgency-reason";
-        reasonSpan.textContent = `(${data.urgency_reason})`;
-        urgencyDiv.appendChild(reasonSpan);
-    }
-    container.appendChild(urgencyDiv);
+    // 2. Keywords
+    if (data.keywords && data.keywords.length > 0) {
+        const keywordsHeader = document.createElement('h4');
+        keywordsHeader.textContent = getText("keywordsHeader", lang);
+        container.appendChild(keywordsHeader);
 
-    // 2. Tags
-    if (data.tags && data.tags.length > 0) {
-        const tagsDiv = document.createElement('div');
-        tagsDiv.style.marginBottom = "10px";
-        data.tags.forEach(tag => {
+        const keywordsDiv = document.createElement('div');
+        keywordsDiv.style.marginBottom = "10px";
+        data.keywords.forEach(tag => {
             const badge = document.createElement('span');
             badge.className = "badge";
             badge.textContent = tag;
-            tagsDiv.appendChild(badge);
+            keywordsDiv.appendChild(badge);
         });
-        container.appendChild(tagsDiv);
+        container.appendChild(keywordsDiv);
     }
 
     // 3. Summary

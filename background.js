@@ -8,7 +8,9 @@
 let appSettings = {
     maxCacheEntries: 500,
     maxRequestsPerSecond: 5,
-    maxConcurrentRequests: 3,
+    maxConcurrentRequests: 20,
+    popupWidth: 400,
+    temperature: 1.0,
     briefingUrgency: 5,
     displayLanguage: "en",
     outputLanguage: "English"
@@ -169,7 +171,7 @@ async function handleBriefing() {
         const summaries = highImportanceEmails.map((email, idx) => {
             // Include date in the summary line for AI context
             const dateStr = email.date ? new Date(email.date).toLocaleString() : "Unknown Date";
-            return `${idx + 1}. [${dateStr}] [Urgency: ${email.urgency_score}] ${email.summary} (Tags: ${email.tags ? email.tags.join(", ") : ""})`;
+            return `${idx + 1}. [${dateStr}] [Urgency: ${email.urgency_score}] ${email.summary} (Keywords: ${email.keywords ? email.keywords.join(", ") : ""})`;
         }).join("\n");
 
         // 5. Call AI
@@ -286,7 +288,9 @@ async function loadSettings() {
     // 兜底与校验
     appSettings.maxCacheEntries = Math.max(1, parseInt(appSettings.maxCacheEntries) || 500);
     appSettings.maxRequestsPerSecond = Math.max(1, parseInt(appSettings.maxRequestsPerSecond) || 5);
-    appSettings.maxConcurrentRequests = Math.max(1, parseInt(appSettings.maxConcurrentRequests) || 3);
+    appSettings.maxConcurrentRequests = Math.max(1, parseInt(appSettings.maxConcurrentRequests) || 20);
+    appSettings.popupWidth = Math.max(300, parseInt(appSettings.popupWidth) || 400);
+    appSettings.temperature = isNaN(parseFloat(appSettings.temperature)) ? 1.0 : parseFloat(appSettings.temperature);
     appSettings.briefingUrgency = Math.max(1, parseInt(appSettings.briefingUrgency) || 5);
     appSettings.displayLanguage = stored.displayLanguage || appSettings.displayLanguage || "en";
     appSettings.outputLanguage = stored.outputLanguage || appSettings.outputLanguage || "English";
@@ -557,7 +561,7 @@ async function handleBatchSummary(payload) {
         // User requested high concurrency (requests sent at rate limit, but processing in parallel)
         // We set a high concurrent limit (e.g. 50) so the rate limiter (maxPerSecond) becomes the bottleneck for *starting*,
         // but slow API responses don't block new requests from starting.
-        const maxConcurrent = 50;
+        const maxConcurrent = appSettings.maxConcurrentRequests || 20;
         const schedule = createRateLimitedRunner(maxConcurrent, maxPerSecond);
 
         let finished = 0;
@@ -774,10 +778,10 @@ async function callAI(text, author, subject, emailDate) {
 You are a smart email assistant. Please analyze the email provided by the user and output a JSON object with the following schema:
 {
     "summary": "string (Summarize the content in ${outputLang}, < 100 words)",
-    "tags": ["string (Short tags, 2-4 words in ${outputLang}, e.g. [Invoice], [Meeting])"],
+    "keywords": ["string (Short keywords, 2-4 words in ${outputLang}, e.g. [Invoice], [Meeting])"],
     "action_items": ["string (List of action items in ${outputLang})"],
     "urgency_score": number (1-10),
-    "urgency_reason": "string (Explain why this score was given in ${outputLang})"
+    "urgency_reason": "string (解释打分原因（非复述内容），一句话，最多1次逗号1次句号,简述即可。Given in ${outputLang}"
 }
 
 Urgency Score Rules (1-10):
@@ -796,7 +800,7 @@ Context Boosters:
 Constraint:
 - Output ONLY valid JSON.
 - Do not include markdown ' \`\`\`json ' fences.
-- Summary, tags, action_items, and urgency_reason MUST be in ${outputLang}.
+- Summary, keywords, action_items, and urgency_reason MUST be in ${outputLang}.
 `;
 
     // 2. User Prompt: 纯上下文信息
