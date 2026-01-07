@@ -133,7 +133,9 @@ function togglePromptFields(enabled) {
         el.style.opacity = "1"; // Always visible text
         el.style.backgroundColor = enabled ? "#ffffff" : "#f8f9fa";
         el.style.color = enabled ? "#333" : "#6c757d";
-        el.style.cursor = enabled ? "text" : "default";
+        el.style.cursor = "text";
+        el.style.resize = "vertical";
+
 
         // Also gray out the wrapper to make it obvious
         const wrapper = el.parentElement;

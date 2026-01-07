@@ -105,7 +105,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 messageId: currentMessageId,
                 author: currentAuthor,
                 subject: currentSubject,
-                forceRegen: true
+                forceUpdate: true
             }
         });
 
