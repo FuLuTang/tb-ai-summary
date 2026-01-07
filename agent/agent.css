@@ -290,6 +290,12 @@ body {
 }
 
 /* Thought Steps inside Sidebar */
+.ts-step-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .ts-step {
     position: relative;
     padding-left: 20px;
@@ -620,28 +626,7 @@ input:checked+.slider:before {
     color: var(--text-primary);
 }
 
-.avatar {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    /* Circle avatars */
-    flex-shrink: 0;
-    margin-top: 4px;
-    /* Align with text top */
-}
-
-.avatar.ai {
-    background-color: transparent;
-    border: 1px solid var(--border-color);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-}
-
-.avatar.user {
-    background-color: #555;
-}
+/* Avatar Removed */
 
 
 /* Branching Controls */

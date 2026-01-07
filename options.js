@@ -29,48 +29,115 @@ const saveBtnAI = document.getElementById('saveBtnAI');
 if (saveBtnAI) {
     saveBtnAI.addEventListener('click', saveOptions);
 }
+const saveBtnPrompts = document.getElementById('saveBtnPrompts');
+if (saveBtnPrompts) {
+    saveBtnPrompts.addEventListener('click', saveOptions);
+}
 
 function restoreOptions() {
+    // Use the global appSettings defined in settings.js, but ensure it's populated from storage
+    // We can't rely on settings.js loadSettings() because we need the callback here.
     browser.storage.local.get("app_settings").then((res) => {
-        const settings = res.app_settings || {
-            maxCacheEntries: 500,
-            apiKey: "",
-            apiUrl: "https://api.openai.com/v1/chat/completions",
-            temperature: 1.0,
-            maxRequestsPerSecond: 5,
-            maxConcurrentRequests: 20,
-            popupWidth: 400,
-            autoTagging: false,
-            autoCreateTags: false,
-            maxTagsPerEmail: 3,
-            briefingUrgency: 5,
-            displayLanguage: "en",
-            outputLanguage: "English",
-            lowModel: "gpt-5-nano",
-            midModel: "gpt-5-mini",
-            highModel: "gpt-5.1"
-        };
-        document.getElementById('displayLanguage').value = settings.displayLanguage || "en";
-        document.getElementById('outputLanguage').value = settings.outputLanguage || "English";
+        const loaded = res.app_settings || {};
 
-        updateUIText(settings.displayLanguage || "en");
-        document.getElementById('maxCache').value = settings.maxCacheEntries;
-        document.getElementById('apiKey').value = settings.apiKey || "";
-        document.getElementById('apiUrl').value = settings.apiUrl || "https://api.openai.com/v1/chat/completions";
+        // Merge with existing defaults in global variable to ensure structure
+        appSettings = { ...appSettings, ...loaded };
 
-        document.getElementById('temperature').value = settings.temperature !== undefined ? settings.temperature : 1.0;
-        document.getElementById('maxRps').value = settings.maxRequestsPerSecond !== undefined ? settings.maxRequestsPerSecond : 5;
-        document.getElementById('maxConcurrent').value = settings.maxConcurrentRequests !== undefined ? settings.maxConcurrentRequests : 20;
-        document.getElementById('popupWidth').value = settings.popupWidth !== undefined ? settings.popupWidth : 400;
-        document.getElementById('autoTagging').checked = settings.autoTagging === true;
-        document.getElementById('maxTagsPerEmail').value = settings.maxTagsPerEmail !== undefined ? settings.maxTagsPerEmail : 3;
-        document.getElementById('briefingUrgency').value = settings.briefingUrgency !== undefined ? settings.briefingUrgency : 5;
-        document.getElementById('lowModel').value = settings.lowModel || "gpt-5-nano";
-        document.getElementById('midModel').value = settings.midModel || "gpt-5-mini";
-        document.getElementById('highModel').value = settings.highModel || "gpt-5.1";
+        // Ensure promptProfile default
+        if (!appSettings.promptProfile) appSettings.promptProfile = "default";
+
+        document.getElementById('displayLanguage').value = appSettings.displayLanguage || "en";
+        document.getElementById('outputLanguage').value = appSettings.outputLanguage || "English";
+
+        updateUIText(appSettings.displayLanguage || "en");
+        document.getElementById('maxCache').value = appSettings.maxCacheEntries;
+        document.getElementById('apiKey').value = appSettings.apiKey || "";
+        document.getElementById('apiUrl').value = appSettings.apiUrl || "https://api.openai.com/v1/chat/completions";
+
+        document.getElementById('lowModel').value = appSettings.lowModel || "gpt-5-nano";
+        document.getElementById('midModel').value = appSettings.midModel || "gpt-5-mini";
+        document.getElementById('highModel').value = appSettings.highModel || "gpt-5.1";
+
+        const defaultTemp = appSettings.temperature !== undefined ? appSettings.temperature : 1.0;
+        document.getElementById('lowModelTemperature').value = appSettings.lowModelTemperature !== undefined ? appSettings.lowModelTemperature : 1.0;
+        document.getElementById('midModelTemperature').value = appSettings.midModelTemperature !== undefined ? appSettings.midModelTemperature : 1.0;
+        document.getElementById('highModelTemperature').value = appSettings.highModelTemperature !== undefined ? appSettings.highModelTemperature : 1.0;
+
+        document.getElementById('promptProfile').value = appSettings.promptProfile;
+        document.getElementById('promptProfile').value = appSettings.promptProfile;
+
+        const isCustom = (appSettings.promptProfile === "custom");
+
+        updatePromptFields(isCustom, appSettings);
+
+        document.getElementById('customSummaryPrompt').value = (appSettings.customPrompts && appSettings.customPrompts.summary) || "";
 
         // Update the state of dependent controls
         updateTagSettingsState();
+    });
+
+    document.getElementById('promptProfile').addEventListener('change', (e) => {
+        const isCustom = e.target.value === "custom";
+        if (!isCustom) {
+            updatePromptFields(false, {}); // {} triggers using DEFAULT_PROMPTS
+        } else {
+            // Restore saved custom prompts from global state
+            updatePromptFields(true, appSettings);
+        }
+    });
+}
+
+function updatePromptFields(isCustom, currentSettings) {
+    const fields = [
+        ['customAgentPrompt', 'agentPersona'],
+        ['customAgentPlan', 'agentPlan'],
+        ['customAgentReview', 'agentReview'],
+        ['customAgentThought', 'agentThought'],
+        ['customAgentFinal', 'agentFinal'],
+        ['customAgentCompress', 'agentCompress'],
+        ['customSummaryPrompt', 'summary'],
+        ['customBriefingPrompt', 'briefing']
+    ];
+
+    const customs = currentSettings ? (currentSettings.customPrompts || {}) : {};
+
+    fields.forEach(([id, key]) => {
+        const el = document.getElementById(id);
+        if (isCustom) {
+            // If custom, use settings value
+            if (customs[key] !== undefined) {
+                el.value = customs[key];
+            }
+            // If empty, fill with default as placeholder/start (except summary which is empty by default)
+            if (!el.value && key !== 'summary') {
+                el.value = DEFAULT_PROMPTS[key] || "";
+            }
+        } else {
+            // Default mode
+            el.value = DEFAULT_PROMPTS[key] || "";
+        }
+    });
+
+    togglePromptFields(isCustom);
+}
+
+function togglePromptFields(enabled) {
+    const ids = [
+        'customAgentPrompt', 'customAgentPlan', 'customAgentReview',
+        'customAgentThought', 'customAgentFinal', 'customAgentCompress',
+        'customSummaryPrompt', 'customBriefingPrompt'
+    ];
+    ids.forEach(id => {
+        const el = document.getElementById(id);
+        el.readOnly = !enabled;
+        el.style.opacity = "1"; // Always visible text
+        el.style.backgroundColor = enabled ? "#ffffff" : "#f8f9fa";
+        el.style.color = enabled ? "#333" : "#6c757d";
+        el.style.cursor = enabled ? "text" : "default";
+
+        // Also gray out the wrapper to make it obvious
+        const wrapper = el.parentElement;
+        if (wrapper) wrapper.classList.toggle('disabled', !enabled); // assuming css class exists or just rely on input style
     });
 }
 
@@ -89,23 +156,49 @@ function updateTagSettingsState() {
 document.getElementById('autoTagging').addEventListener('change', updateTagSettingsState);
 
 function saveOptions() {
-    const maxCache = parseInt(document.getElementById('maxCache').value);
+    /* Saving... visual removed per request */
+    let maxCache = parseInt(document.getElementById('maxCache').value);
+    if (isNaN(maxCache)) maxCache = 500;
+
     const apiKey = document.getElementById('apiKey').value.trim();
     const apiUrl = document.getElementById('apiUrl').value.trim();
 
-    const temperature = parseFloat(document.getElementById('temperature').value);
-    const maxRps = parseInt(document.getElementById('maxRps').value);
-    const maxConcurrent = parseInt(document.getElementById('maxConcurrent').value);
-    const popupWidth = parseInt(document.getElementById('popupWidth').value);
-    const autoTagging = document.getElementById('autoTagging').checked;
-    const maxTagsPerEmail = parseInt(document.getElementById('maxTagsPerEmail').value);
+    let maxRps = parseInt(document.getElementById('maxRps').value);
+    if (isNaN(maxRps)) maxRps = 5;
 
-    const briefingUrgency = parseInt(document.getElementById('briefingUrgency').value);
+    let maxConcurrent = parseInt(document.getElementById('maxConcurrent').value);
+    if (isNaN(maxConcurrent)) maxConcurrent = 20;
+
+    let popupWidth = parseInt(document.getElementById('popupWidth').value);
+    if (isNaN(popupWidth)) popupWidth = 400;
+
+    const autoTagging = document.getElementById('autoTagging').checked;
+
+    let maxTagsPerEmail = parseInt(document.getElementById('maxTagsPerEmail').value);
+    if (isNaN(maxTagsPerEmail)) maxTagsPerEmail = 3;
+
+    let briefingUrgency = parseInt(document.getElementById('briefingUrgency').value);
+    if (isNaN(briefingUrgency)) briefingUrgency = 5;
     const displayLanguage = document.getElementById('displayLanguage').value;
     const outputLanguage = document.getElementById('outputLanguage').value;
     const lowModel = document.getElementById('lowModel').value.trim();
     const midModel = document.getElementById('midModel').value.trim();
     const highModel = document.getElementById('highModel').value.trim();
+
+    const lowModelTemp = parseFloat(document.getElementById('lowModelTemperature').value);
+    const midModelTemp = parseFloat(document.getElementById('midModelTemperature').value);
+    const highModelTemp = parseFloat(document.getElementById('highModelTemperature').value);
+
+    const promptProfile = document.getElementById('promptProfile').value;
+
+    const customAgentPrompt = document.getElementById('customAgentPrompt').value;
+    const customAgentPlan = document.getElementById('customAgentPlan').value;
+    const customAgentReview = document.getElementById('customAgentReview').value;
+    const customAgentThought = document.getElementById('customAgentThought').value;
+    const customAgentFinal = document.getElementById('customAgentFinal').value;
+    const customAgentCompress = document.getElementById('customAgentCompress').value;
+    const customSummaryPrompt = document.getElementById('customSummaryPrompt').value;
+    const customBriefingPrompt = document.getElementById('customBriefingPrompt').value;
 
     if (!maxCache || maxCache < 1) {
         showStatus("请输入有效的最大缓存数量", "error");
@@ -127,11 +220,22 @@ function saveOptions() {
         return;
     }
 
+    const customPrompts = {
+        agentPersona: document.getElementById('customAgentPrompt').value,
+        agentPlan: document.getElementById('customAgentPlan').value,
+        agentReview: document.getElementById('customAgentReview').value,
+        agentThought: document.getElementById('customAgentThought').value,
+        agentFinal: document.getElementById('customAgentFinal').value,
+        agentCompress: document.getElementById('customAgentCompress').value,
+        summary: document.getElementById('customSummaryPrompt').value,
+        briefing: document.getElementById('customBriefingPrompt').value
+    };
+
     const settings = {
         maxCacheEntries: maxCache,
         apiKey: apiKey,
         apiUrl: apiUrl || "https://api.openai.com/v1/chat/completions",
-        temperature: isNaN(temperature) ? 1.0 : temperature,
+        // temperature: ... (removed/handled later)
         maxRequestsPerSecond: maxRps,
         maxConcurrentRequests: maxConcurrent,
         popupWidth: isNaN(popupWidth) ? 400 : popupWidth,
@@ -142,8 +246,18 @@ function saveOptions() {
         outputLanguage: outputLanguage,
         lowModel: lowModel || "gpt-5-nano",
         midModel: midModel || "gpt-5-mini",
-        highModel: highModel || "gpt-5.1"
+        highModel: highModel || "gpt-5.1",
+        lowModelTemperature: isNaN(lowModelTemp) ? 1.0 : lowModelTemp,
+        midModelTemperature: isNaN(midModelTemp) ? 1.0 : midModelTemp,
+        highModelTemperature: isNaN(highModelTemp) ? 1.0 : highModelTemp,
+        temperature: isNaN(highModelTemp) ? 1.0 : highModelTemp, // Keep for backward compatibility/fallback
+
+        promptProfile: promptProfile,
+        customPrompts: customPrompts
     };
+
+    // Update global state
+    appSettings = settings;
 
     browser.storage.local.set({ app_settings: settings }).then(() => {
         updateUIText(displayLanguage);
@@ -151,6 +265,7 @@ function saveOptions() {
         // 通知后台更新设置并执行裁剪
         browser.runtime.sendMessage({ type: "SETTINGS_UPDATED" });
     });
+
 }
 
 
@@ -227,10 +342,12 @@ function updateUIText(lang = "en") {
         ["briefingUrgencyDesc", "briefingUrgencyDesc"],
         ["saveBtn", "saveBtn"],
         ["saveBtnAI", "saveBtn"],
+        ["saveBtnPrompts", "saveBtn"],
         ["clearBtn", "clearBtn"],
         ["logTitle", "logTitle"],
         ["tabGeneral", "tabGeneral"],
         ["tabAi", "tabAi"],
+        ["tabPrompts", "tabPrompts"],
         ["tabLog", "tabLog"],
         ["secLanguage", "secLanguage"],
         ["secSystem", "secSystem"],
@@ -240,6 +357,37 @@ function updateUIText(lang = "en") {
         ["lowModelLabel", "lowModelLabel"],
         ["midModelLabel", "midModelLabel"],
         ["highModelLabel", "highModelLabel"],
+
+        ["catAgentPersona", "catAgentPersona"],
+        ["catAgentStrategy", "catAgentStrategy"],
+        ["catAgentExecution", "catAgentExecution"],
+        ["catEmailAnalysis", "catEmailAnalysis"],
+        ["lblAgentPrompt", "lblAgentPrompt"],
+        ["lblAgentPlan", "lblAgentPlan"],
+        ["lblAgentReview", "lblAgentReview"],
+        ["lblAgentThought", "lblAgentThought"],
+        ["lblAgentFinal", "lblAgentFinal"],
+        ["lblAgentCompress", "lblAgentCompress"],
+        ["lblSummaryPrompt", "lblSummaryPrompt"],
+        ["lblBriefingPrompt", "lblBriefingPrompt"],
+
+        ["secAgentPrompt", "secAgentPrompt"],
+        ["secSummaryPrompt", "secSummaryPrompt"],
+        ["agentPromptDesc", "agentPromptDesc"],
+        ["summaryPromptDesc", "summaryPromptDesc"],
+        ["descAgentPrompt", "descAgentPrompt"],
+        ["descAgentPlan", "descAgentPlan"],
+        ["descAgentReview", "descAgentReview"],
+        ["descAgentThought", "descAgentThought"],
+        ["descAgentFinal", "descAgentFinal"],
+        ["descAgentCompress", "descAgentCompress"],
+        ["descSummaryPrompt", "descSummaryPrompt"],
+        ["descBriefingPrompt", "descBriefingPrompt"],
+        ["lblPromptProfile", "lblPromptProfile"],
+        ["optProfileDefault", "optProfileDefault"],
+        ["optProfileCustom", "optProfileCustom"],
+        ["descPromptProfile", "descPromptProfile"],
+
         ["secLogic", "secLogic"]
     ];
 

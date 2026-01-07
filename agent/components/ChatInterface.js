@@ -16,15 +16,14 @@ export class ChatInterface {
         this.newChatBtn = document.getElementById('new-chat-btn');
         this.sidebarCollapseBtn = document.querySelector('.sidebar-collapse-btn');
 
-        // Dropdowns
-        this.modelSelectorBtn = document.getElementById('model-selector-btn');
-        this.modelMenu = document.getElementById('model-menu');
         this.userMenuBtn = document.querySelector('.user-menu-btn');
         this.userMenu = document.getElementById('user-menu');
         this.tempChatToggle = document.querySelector('.temp-chat-toggle input');
 
         this.onSend = callbacks.onSend;
         this.onClearHistory = callbacks.onClearHistory;
+        this.onNewChat = callbacks.onNewChat;
+        this.onStop = callbacks.onStop;
         this.isChatActive = false;
         this.isGenerating = false;
 
@@ -108,20 +107,13 @@ export class ChatInterface {
         }
 
         // Toggle Model Menu
-        if (this.modelSelectorBtn) {
-            this.modelSelectorBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.toggleDropdown(this.modelMenu);
-                this.closeDropdown(this.userMenu);
-            });
-        }
+
 
         // Toggle User Menu
         if (this.userMenuBtn) {
             this.userMenuBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.toggleDropdown(this.userMenu);
-                this.closeDropdown(this.modelMenu);
             });
         }
 
@@ -162,7 +154,7 @@ export class ChatInterface {
         // New Chat
         if (this.newChatBtn) {
             this.newChatBtn.addEventListener('click', () => {
-                this.resetChat();
+                if (this.onNewChat) this.onNewChat();
             });
         }
 
@@ -296,7 +288,13 @@ export class ChatInterface {
         // Logic to abort LLM request
         console.log("Stopping generation...");
         this.toggleSendStop(false);
-        // Call backend stop if available
+        if (this.onStop) this.onStop();
+
+        // Mark UI session as finished
+        if (this.activeSession) {
+            this.activeSession.finish();
+            this.activeSession = null;
+        }
     }
 
     handleSend() {
@@ -590,9 +588,7 @@ export class ChatInterface {
         const content = document.createElement('div');
         content.className = 'message-content';
 
-        const avatar = document.createElement('div');
-        avatar.className = 'avatar ai';
-        avatar.textContent = '🧠';
+
 
         const body = document.createElement('div');
         body.className = 'message-body';
@@ -616,7 +612,7 @@ export class ChatInterface {
 
         body.appendChild(badge);
         body.appendChild(answerDiv);
-        content.appendChild(avatar);
+
         content.appendChild(body);
         row.appendChild(content);
 
@@ -655,9 +651,9 @@ export class ChatInterface {
             tsClose.onclick = () => this.closeThoughtSidebar();
         }
 
-        return {
-            addStep: (thought, action) => {
-                const step = { thought, action, time: Date.now() };
+        const sessionApi = {
+            addStep: (type, title, detail) => {
+                const step = { type, title, detail, time: Date.now() };
                 sessionData.steps.push(step);
 
                 // If this session is currently displayed in sidebar, append to DOM
@@ -678,7 +674,7 @@ export class ChatInterface {
                 // If sidebar open, update final state
                 if (this.currentSidebarSession === sessionData) {
                     const lang = (window.appSettings && window.appSettings.displayLanguage) || 'en';
-                    const step = { thought: lang === 'zh' ? "完成" : "Finished", action: null, time: Date.now(), isFinal: true };
+                    const step = { type: 'finish', title: lang === 'zh' ? "完成" : "Finished", detail: null, time: Date.now(), isFinal: true };
                     this.appendStepToSidebar(step);
                 }
             },
@@ -688,10 +684,14 @@ export class ChatInterface {
                 }
             },
             // Helper to stream answer content
-            appendContent: (text) => {
-                this.renderMarkdownTo(answerDiv, text);
+            appendAnswer: (text) => {
+                answerDiv.innerHTML = this.renderMarkdown(text);
+                this.scrollToBottom();
             }
         };
+
+        this.activeSession = sessionApi;
+        return sessionApi;
     }
 
     openThoughtSidebar(sessionData) {
@@ -730,18 +730,39 @@ export class ChatInterface {
 
     createStepElement(step) {
         const div = document.createElement('div');
-        div.className = 'ts-step active'; // All current are active/visited
+        div.className = `ts-step active type-${step.type || 'generic'}`;
 
-        const textDiv = document.createElement('div');
-        textDiv.className = 'ts-step-content';
-        textDiv.textContent = step.thought;
-        div.appendChild(textDiv);
+        let icon = '📝';
+        if (step.type === 'plan') icon = '📋';
+        if (step.type === 'thought') icon = '🤔';
+        if (step.type === 'action') icon = '🔌';
+        if (step.type === 'observation') icon = '🔍';
+        if (step.type === 'error') icon = '❌';
+        if (step.type === 'finish') icon = '🏁';
+        if (step.type === 'memory') icon = '📦';
 
-        if (step.action) {
-            const actionDiv = document.createElement('div');
-            actionDiv.className = 'ts-tool-call';
-            actionDiv.innerHTML = `<span class="icon">🔌</span> ${step.action}`;
-            div.appendChild(actionDiv);
+        // Header
+        const header = document.createElement('div');
+        header.className = 'ts-step-header';
+        header.style.marginBottom = '4px';
+        header.style.fontWeight = 'bold';
+        header.style.color = 'var(--text-main)';
+        header.innerHTML = `<span class="icon">${icon}</span> ${step.title || 'Step'}`;
+        div.appendChild(header);
+
+        // Body
+        if (step.detail) {
+            const body = document.createElement('div');
+            body.className = 'ts-step-body';
+            // Use existing classes for specific formatting if needed
+            if (step.type === 'action') {
+                body.className += ' ts-tool-call';
+                body.style.fontFamily = 'monospace';
+            }
+            body.style.color = 'var(--text-muted)';
+            body.style.whiteSpace = 'pre-wrap';
+            body.textContent = typeof step.detail === 'object' ? JSON.stringify(step.detail, null, 2) : step.detail;
+            div.appendChild(body);
         }
 
         return div;

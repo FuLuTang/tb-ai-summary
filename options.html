@@ -208,12 +208,24 @@
             transform: translateY(1px);
         }
 
-        #saveBtn {
-            background-color: #007bff;
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
         }
 
-        #saveBtn:hover {
-            background-color: #0069d9;
+        .btn-primary,
+        #saveBtn,
+        #saveBtnAI,
+        #saveBtnPrompts {
+            background-color: #007bff !important;
+            color: white !important;
+        }
+
+        .btn-primary:hover,
+        #saveBtn:hover,
+        #saveBtnAI:hover,
+        #saveBtnPrompts:hover {
+            background-color: #0069d9 !important;
         }
 
         #clearBtn {
@@ -273,6 +285,7 @@
     <div class="tabs">
         <button class="tab-btn active" data-tab="general" id="tabGeneral">General</button>
         <button class="tab-btn" data-tab="ai" id="tabAi">AI API</button>
+        <button class="tab-btn" data-tab="prompts" id="tabPrompts">Prompts</button>
         <button class="tab-btn" data-tab="log" id="tabLog">Logs</button>
     </div>
 
@@ -348,7 +361,7 @@
             </div>
         </div>
         <div class="actions">
-            <button id="saveBtn">Save Settings</button>
+            <button id="saveBtn" class="btn-primary">Save Settings</button>
             <button id="clearBtn">Clear Cache</button>
         </div>
     </div>
@@ -369,27 +382,37 @@
 
 
             <h3 class="section-title" id="secModelSelection">Model Selection</h3>
+            <!-- Low Model Pair -->
             <div class="form-group">
                 <label id="lowModelLabel" for="lowModel">Low-end Model</label>
                 <input type="text" id="lowModel" placeholder="gpt-5-nano">
             </div>
             <div class="form-group">
+                <label>Low Model Temp (0.0-2.0)</label>
+                <input type="number" id="lowModelTemperature" min="0" max="2" step="0.1" placeholder="1.0">
+            </div>
+
+            <!-- Mid Model Pair -->
+            <div class="form-group">
                 <label id="midModelLabel" for="midModel">Mid-range Model</label>
                 <input type="text" id="midModel" placeholder="gpt-5-mini">
             </div>
             <div class="form-group">
+                <label>Mid Model Temp (0.0-2.0)</label>
+                <input type="number" id="midModelTemperature" min="0" max="2" step="0.1" placeholder="1.0">
+            </div>
+
+            <!-- High Model Pair -->
+            <div class="form-group">
                 <label id="highModelLabel" for="highModel">High-end Model</label>
                 <input type="text" id="highModel" placeholder="gpt-5.1">
             </div>
+            <div class="form-group">
+                <label>High Model Temp (0.0-2.0)</label>
+                <input type="number" id="highModelTemperature" min="0" max="2" step="0.1" placeholder="1.0">
+            </div>
 
             <h3 class="section-title" id="secLogic">Performance & Logic</h3>
-            <div class="form-group">
-                <label id="temperatureLabel" for="temperature">Temperature (0.0 - 2.0)</label>
-                <input type="number" id="temperature" min="0" max="2" step="0.1" placeholder="1.0">
-                <p id="temperatureDesc" class="desc-text">
-                    Controls AI randomness. Lower (0.2) is more focused, higher (0.8) is more creative.
-                </p>
-            </div>
 
             <div class="form-group">
                 <label id="maxRpsLabel" for="maxRps">Max Requests Per Second (RPS)</label>
@@ -408,7 +431,93 @@
             </div>
         </div>
         <div class="actions">
-            <button id="saveBtnAI">Save Settings</button>
+            <button id="saveBtnAI" class="btn-primary">Save Settings</button>
+        </div>
+    </div>
+
+    <div id="prompts" class="tab-content">
+        <div class="settings-grid">
+
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label id="lblPromptProfile" for="promptProfile">Prompt Profile</label>
+                <select id="promptProfile">
+                    <option value="default" id="optProfileDefault">Default (Read-only)</option>
+                    <option value="custom" id="optProfileCustom">Custom</option>
+                </select>
+                <p id="descPromptProfile" class="desc-text">Select 'Custom' to edit prompts.</p>
+            </div>
+
+            <!-- Category: Agent Persona -->
+            <h3 class="section-title" id="catAgentPersona">Agent Persona</h3>
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label id="lblAgentPrompt" for="customAgentPrompt">Base Persona</label>
+                <textarea id="customAgentPrompt"
+                    style="width: 100%; height: 100px; font-family: monospace; padding: 10px;"
+                    placeholder="Default Agent Prompt..."></textarea>
+                <p id="descAgentPrompt" class="desc-text">The core personality and role definition of the Agent.</p>
+            </div>
+
+            <!-- Category: Agent Strategy (High Model) -->
+            <h3 class="section-title" id="catAgentStrategy">Agent Strategy (High Model)</h3>
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label id="lblAgentPlan" for="customAgentPlan">Planning Instruction</label>
+                <textarea id="customAgentPlan" style="width: 100%; height: 80px; font-family: monospace; padding: 10px;"
+                    placeholder="Default: Create a concise plan..."></textarea>
+                <p id="descAgentPlan" class="desc-text">Instructions for creating the initial task plan.</p>
+            </div>
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label id="lblAgentReview" for="customAgentReview">Plan Review Instruction</label>
+                <textarea id="customAgentReview"
+                    style="width: 100%; height: 80px; font-family: monospace; padding: 10px;"
+                    placeholder="Default: Is this plan still valid?..."></textarea>
+                <p id="descAgentReview" class="desc-text">Instructions for reviewing and updating the plan during
+                    execution.</p>
+            </div>
+
+            <!-- Category: Agent Execution (Mid Model) -->
+            <h3 class="section-title" id="catAgentExecution">Agent Execution (Mid Model)</h3>
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label id="lblAgentThought" for="customAgentThought">Reasoning Instruction</label>
+                <textarea id="customAgentThought"
+                    style="width: 100%; height: 80px; font-family: monospace; padding: 10px;"
+                    placeholder="Default: Analyze the current situation..."></textarea>
+                <p id="descAgentThought" class="desc-text">Instructions for the 'Thinking' step.</p>
+            </div>
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label id="lblAgentFinal" for="customAgentFinal">Final Answer Instruction</label>
+                <textarea id="customAgentFinal"
+                    style="width: 100%; height: 60px; font-family: monospace; padding: 10px;"
+                    placeholder="Default: Provide final answer..."></textarea>
+                <p id="descAgentFinal" class="desc-text">Instructions for generating the final response to the user.</p>
+            </div>
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label id="lblAgentCompress" for="customAgentCompress">Memory Compression</label>
+                <textarea id="customAgentCompress"
+                    style="width: 100%; height: 80px; font-family: monospace; padding: 10px;"
+                    placeholder="Default: Summarize the conversation history..."></textarea>
+                <p id="descAgentCompress" class="desc-text">Instructions for summarizing long conversation history.</p>
+            </div>
+
+            <!-- Category: Email Analysis (Background) -->
+            <h3 class="section-title" id="catEmailAnalysis">Email Analysis (Background)</h3>
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label id="lblSummaryPrompt" for="customSummaryPrompt">Email Summary</label>
+                <textarea id="customSummaryPrompt"
+                    style="width: 100%; height: 100px; font-family: monospace; padding: 10px;"
+                    placeholder="Default Summary Prompt..."></textarea>
+                <p id="descSummaryPrompt" class="desc-text">Instructions for summarizing a single email.</p>
+            </div>
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label id="lblBriefingPrompt" for="customBriefingPrompt">Daily Briefing</label>
+                <textarea id="customBriefingPrompt"
+                    style="width: 100%; height: 100px; font-family: monospace; padding: 10px;"
+                    placeholder="Default Briefing Prompt..."></textarea>
+                <p id="descBriefingPrompt" class="desc-text">Instructions for generating the daily briefing.</p>
+            </div>
+
+        </div>
+        <div class="actions">
+            <button id="saveBtnPrompts" class="btn-primary">Save Settings</button>
         </div>
     </div>
 
@@ -419,6 +528,7 @@
 
     <div id="status" class="status"></div>
 
+    <script src="settings.js"></script>
     <script src="i18n.js"></script>
     <script src="options.js"></script>
 </body>

@@ -193,8 +193,13 @@ async function callAI(text, author, subject, emailDate, messageId) {
     }
 
     // 1. System Prompt
+    // 1. System Prompt
+    const customSummary = appSettings.customPrompts ? appSettings.customPrompts.summary : "";
+    // Use custom instruction if available, otherwise default.
+    const baseInstr = customSummary || DEFAULT_PROMPTS.summary;
+
     let systemPrompt = `
-You are a smart email assistant. Please analyze the email provided by the user and output a JSON object with the following schema:
+${baseInstr}
 {
     "summary": "string (Summarize the content in ${outputLang}, < 100 words)",
     "keywords": ["string (Short keywords, 2-4 words in ${outputLang}, e.g. [Invoice], [Meeting])"],
@@ -203,7 +208,7 @@ You are a smart email assistant. Please analyze the email provided by the user a
 
     if (tagsListFormatted) {
         systemPrompt = `
-You are a smart email assistant. Please analyze the email provided by the user and output a JSON object with the following schema:
+${baseInstr}
 {
     "summary": "string (Summarize the content in ${outputLang}, < 100 words)",
     "keywords": ["string (Short keywords, 2-4 words in ${outputLang}, e.g. [Invoice], [Meeting])"],
@@ -260,7 +265,7 @@ Use ${outputLang} for output.
 
     const apiUrl = appSettings.apiUrl || "https://api.openai.com/v1/chat/completions";
     const model = appSettings.midModel || "gpt-5-mini";
-    const temperature = appSettings.temperature !== undefined ? appSettings.temperature : 0.2;
+    const temperature = appSettings.midModelTemperature !== undefined ? appSettings.midModelTemperature : (appSettings.temperature !== undefined ? appSettings.temperature : 0.2);
 
     const response = await fetch(apiUrl, {
         method: "POST",
@@ -510,8 +515,7 @@ Summary: ${s.summary}
 
         const outputLang = appSettings.outputLanguage || "Simplified Chinese";
 
-        const briefingPrompt = `
-You are a executive secretary. Based on the following email summaries from the last 24 hours, generate a "Daily Briefing".
+        const defaultBriefingInstr = `You are a executive secretary. Based on the following email summaries from the last 24 hours, generate a "Daily Briefing".
 
 Format:
 1. **Overview**: 1-2 sentences overall status.
@@ -519,7 +523,12 @@ Format:
 3. **Key Themes**: Group other items by topic (e.g. Work, News, Personal).
 4. **Action Plan**: Suggested order of processing.
 
-Output in ${outputLang}. Use Markdown.
+Output in ${outputLang}. Use Markdown.`;
+
+        const customBriefing = appSettings.customPrompts ? appSettings.customPrompts.briefing : "";
+        const briefingInstr = customBriefing || defaultBriefingInstr;
+
+        const briefingPrompt = `${briefingInstr}
 
 Email Summaries:
 ${summariesText}

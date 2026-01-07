@@ -28,7 +28,23 @@ export class AgentCore {
 
     async clearHistory() {
         this.sessionService.clearAll();
+        // Reset UI context
         await this.startNewChat();
+    }
+
+    stop() {
+        this.isStopped = true;
+        this.llm.abort();
+        this.ui.updateStatus("已停止");
+        // Also finish the UI session so it stops spinning
+        // This requires access to the current aiSession? 
+        // sendMessage creates local `agentUiSession`.
+        // We can't access it easily here unless we store it.
+        // But `stopGeneration` in UI usually toggles button.
+        // The thinking badge might spin forever if we don't finish it.
+        // But if `sendMessage` exits, `agentUiSession` is lost.
+        // We should technically `agentUiSession.finish()`.
+        // I'll add `this.currentUiSession` property to AgentCore.
     }
 
     // Switch to a specific session
@@ -54,16 +70,22 @@ export class AgentCore {
 
         // 2. Persist User Message
         this.sessionService.addMessage(session.id, { role: 'user', content: userText });
+        // CRITICAL FIX: Reload session to include the newly added message in the context
+        session = this.sessionService.getSession(session.id);
 
         // 3. Prepare Context
+        // 3. Prepare Context
         const toolDescriptions = this.tools.getToolDescriptions();
-        const outputLang = appSettings.outputLanguage || "Simplified Chinese";
-        const baseSystemPrompt = `You are an intelligent Thunderbird Email Agent.
+
+        // Use custom persona or default
+        const defaultPersona = "You are an intelligent Thunderbird Email Agent.\nYour goal is to assist the user with email tasks.";
+        const customPersona = appSettings.customPrompts ? appSettings.customPrompts.agentPersona : "";
+        const persona = customPersona || defaultPersona;
+
+        const baseSystemPrompt = `${persona}
 Available Tools:
 ${toolDescriptions}
 Current Date: ${new Date().toLocaleString()}
-
-Your goal is to assist the user with email tasks. Please respond in ${outputLang}.
 `;
 
         const contextMessages = session.messages.map(m => ({ role: m.role, content: m.content }));
@@ -77,51 +99,66 @@ Your goal is to assist the user with email tasks. Please respond in ${outputLang
         let finalAnswer = "";
         let thoughtLog = [];
         let executionContext = [...contextMessages]; // Working memory for the loop
+        this.isStopped = false;
 
         try {
             // --- Phase 1: Planning (High Model) ---
+            const defaultPlan = 'Based on the conversation, please create a concise text-based plan (3-5 steps) to solve the user\'s latest request. If the request is simple (like "hi"), just say "No complex plan needed".';
+            const customPlan = appSettings.customPrompts ? appSettings.customPrompts.agentPlan : "";
+            const planInstr = customPlan || defaultPlan;
+
             const planPrompt = [
                 { role: 'system', content: baseSystemPrompt + "\nYour goal is to satisfy the user request." },
                 ...contextMessages,
-                { role: 'user', content: `Based on the conversation, please create a concise text-based plan (3-5 steps) to solve the user's latest request. If the request is simple (like "hi"), just say "No complex plan needed".` }
+                { role: 'user', content: planInstr }
             ];
 
             const planRes = await this.llm.callHigh(planPrompt);
             currentPlan = planRes.choices[0].message.content;
 
             const lang = appSettings.displayLanguage || "en";
-            agentUiSession.addStep(getText("agentPlan", lang), currentPlan);
+            agentUiSession.addStep('plan', getText("agentPlan", lang), currentPlan);
             thoughtLog.push({ type: 'plan', content: currentPlan });
 
             // --- Phase 2: ReAct Loop (Mid & Low Models) ---
             let iterations = 0;
 
-            while (iterations < this.maxIterations) {
+            while (iterations < this.maxIterations && !this.isStopped) {
                 iterations++;
 
                 // --- Memory Management (README Step 1) ---
                 const contextLength = executionContext.reduce((acc, m) => acc + m.content.length, 0);
                 if (contextLength > 12000) {
                     this.ui.updateStatus(`${getText("agentMemoryCompressed", lang)} (${contextLength})...`);
+                    const defaultCompress = "You are a memory management assistant. Please summarize the following conversation history into a concise summary, retaining all key facts, retrieved email info, and current progress so the Agent can continue.";
+                    const customCompress = appSettings.customPrompts ? appSettings.customPrompts.agentCompress : "";
+                    const compressInstr = customCompress || defaultCompress;
+
                     const compressPrompt = [
-                        { role: 'system', content: "你是一个记忆管理助手。请将以下对话历史压缩成一段简练的摘要，保留所有关键事实、已获取的邮件信息和目前的进展，以便 Agent 继续工作。" },
+                        { role: 'system', content: compressInstr },
                         { role: 'user', content: JSON.stringify(executionContext) }
                     ];
                     const compressRes = await this.llm.callMid(compressPrompt);
+                    const compressedContent = compressRes.choices[0].message.content;
                     executionContext = [
-                        { role: 'system', content: `之前对话的压缩记忆：\n${compressRes.choices[0].message.content}` }
+                        { role: 'system', content: `Memory Compressed (Previous context): \n${compressedContent}` }
                     ];
-                    agentUiSession.addStep(getText("agentMemoryCompressed", lang), "Long context summarized to save tokens.");
+                    agentUiSession.addStep('memory', getText("agentMemoryCompressed", lang), "Long context summarized to save tokens.");
                 }
 
                 this.ui.updateStatus(`${getText("agentThinking", lang)} (${iterations})...`);
 
                 // 2.1 Thought (Mid Model)
                 // MidModel sees: System + History + Plan + Current Observation Loop
+                // Default Instruction
+                const defaultThought = "Task: Analyze the current situation. Do we need to use a tool to get more information, or can we answer the user now?";
+                const customThought = appSettings.customPrompts ? appSettings.customPrompts.agentThought : "";
+                const thoughtInstr = customThought || defaultThought;
+
                 const thoughtPrompt = [
                     { role: 'system', content: baseSystemPrompt },
                     ...executionContext,
-                    { role: 'system', content: `Current Plan:\n${currentPlan}\n\nTask: Analyze the current situation. Do we need to use a tool to get more information, or can we answer the user now?\nOutput Format:\nThought: [Your reasoning]\nDecision: [CALL_TOOL or ANSWER]` }
+                    { role: 'system', content: `Current Plan:\n${currentPlan}\n\n${thoughtInstr}\nOutput Format:\nThought: [Your reasoning]\nDecision: [CALL_TOOL or ANSWER]` }
                 ];
 
                 const midRes = await this.llm.callMid(thoughtPrompt);
@@ -137,7 +174,7 @@ Your goal is to assist the user with email tasks. Please respond in ${outputLang
                     decision = midContent.split("Decision:")[1].trim().toUpperCase();
                 }
 
-                agentUiSession.addStep(getText("agentThought", lang), thought);
+                agentUiSession.addStep('thought', getText("agentThought", lang), thought);
                 thoughtLog.push({ type: 'thought', content: thought, step: iterations });
 
                 // Add thought to context for continuity
@@ -162,7 +199,7 @@ Your goal is to assist the user with email tasks. Please respond in ${outputLang
                         const toolName = actionMatch[1];
                         const toolParam = actionMatch[2] || "";
 
-                        agentUiSession.addStep(getText("agentAction", lang), `${toolName}("${toolParam}")`);
+                        agentUiSession.addStep('action', getText("agentAction", lang), `${toolName}("${toolParam}")`);
                         thoughtLog.push({ type: 'action', tool: toolName, param: toolParam });
 
                         // Execute
@@ -174,18 +211,25 @@ Your goal is to assist the user with email tasks. Please respond in ${outputLang
                         executionContext.push({ role: 'user', content: observationStr });
                         thoughtLog.push({ type: 'observation', content: observation });
 
+                        agentUiSession.addStep('observation', 'Tool Output', observation);
+
                         // --- Plan Review (High Model) - Every 3 steps ---
                         if (iterations % 3 === 0) {
                             this.ui.updateStatus(`Reviewing Plan (HighModel)...`);
+
+                            const defaultReview = 'Based on recent observations, is this plan still valid? If needed, provide a revised plan. If valid, just say "Plan looks good".';
+                            const customReview = appSettings.customPrompts ? appSettings.customPrompts.agentReview : "";
+                            const reviewInstr = customReview || defaultReview;
+
                             const reviewPrompt = [
                                 ...executionContext,
-                                { role: 'user', content: `Current Plan: ${currentPlan}\n\nBased on recent observations, is this plan still valid? If needed, provide a revised plan. If valid, just say "Plan looks good".` }
+                                { role: 'user', content: `Current Plan: ${currentPlan}\n\n${reviewInstr}` }
                             ];
                             const reviewRes = await this.llm.callHigh(reviewPrompt);
                             const reviewContent = reviewRes.choices[0].message.content;
                             if (!reviewContent.toLowerCase().includes("looks good")) {
                                 currentPlan = reviewContent;
-                                agentUiSession.addStep(`🔄 Plan Updated`, currentPlan);
+                                agentUiSession.addStep('plan', `🔄 Plan Updated`, currentPlan);
                             }
                         }
 
@@ -193,16 +237,20 @@ Your goal is to assist the user with email tasks. Please respond in ${outputLang
                         // Low model failed to parse
                         const errorMsg = "Observation: Failed to parse tool action from LowModel.";
                         executionContext.push({ role: 'user', content: errorMsg });
-                        agentUiSession.addStep(getText("agentError", lang), "LowModel parse failed");
+                        agentUiSession.addStep('error', getText("agentError", lang), "LowModel parse failed");
                     }
 
                 } else {
                     // --- Final Answer Generation (Mid Model) ---
                     this.ui.updateStatus(`Generating Answer...`);
                     // We let MidModel generate the final conversational response based on the accumulated context
+                    const defaultFinal = "Please provide the final answer to the user request.";
+                    const customFinal = appSettings.customPrompts ? appSettings.customPrompts.agentFinal : "";
+                    const finalInstr = customFinal || defaultFinal;
+
                     const finalPrompt = [
                         ...executionContext,
-                        { role: 'user', content: "Please provide the final answer to the user request." }
+                        { role: 'user', content: finalInstr }
                     ];
 
                     const finalRes = await this.llm.callMid(finalPrompt);

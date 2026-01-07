@@ -20,6 +20,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         },
         onClearHistory: async () => {
             await agent.clearHistory();
+        },
+        onNewChat: async () => {
+            await agent.startNewChat();
+        },
+        onStop: () => {
+            agent.stop();
         }
     });
 
@@ -29,6 +35,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Initialize/Load Session
     await agent.startNewChat();
+
+    // 3. Listen for Settings Updates
+    browser.runtime.onMessage.addListener(async (message) => {
+        if (message.type === "SETTINGS_UPDATED") {
+            console.log("Settings updated message received. Reloading...");
+            if (window.loadSettings) {
+                await window.loadSettings();
+                // Re-localize UI
+                ui.localize();
+            }
+        }
+    });
 
     console.log("Agent initialized.");
 });
