@@ -56,7 +56,7 @@
         .tab-content {
             display: none;
             background: white;
-            padding: 30px;
+            padding: 20px 25px;
             border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
             min-height: 480px;
@@ -71,18 +71,35 @@
         .settings-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 25px;
+            gap: 15px 25px;
+        }
+
+        .section-title {
+            grid-column: 1 / -1;
+            font-size: 15px;
+            color: #007bff;
+            border-bottom: 1px solid #e9ecef;
+            padding-bottom: 5px;
+            margin: 15px 0 10px 0;
+            font-weight: 700;
         }
 
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 15px;
+            transition: opacity 0.3s ease;
+        }
+
+        .form-group.disabled {
+            opacity: 0.3;
+            pointer-events: none;
+            filter: grayscale(1);
         }
 
         label {
             display: block;
-            margin-bottom: 8px;
+            margin-bottom: 5px;
             font-weight: 600;
-            font-size: 14px;
+            font-size: 13px;
             color: #495057;
         }
 
@@ -91,11 +108,11 @@
         input[type="password"],
         select {
             width: 100%;
-            padding: 10px;
+            padding: 8px 10px;
             border: 1px solid #ced4da;
             border-radius: 5px;
             box-sizing: border-box;
-            font-size: 14px;
+            font-size: 13px;
         }
 
         input:focus,
@@ -106,10 +123,68 @@
         }
 
         .desc-text {
-            font-size: 12px;
+            font-size: 11px;
             color: #6c757d;
-            margin-top: 6px;
+            margin-top: 4px;
             line-height: 1.4;
+        }
+
+        /* iOS style switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background-color: #34c759;
+            /* iOS Green */
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(20px);
+        }
+
+        .toggle-group .toggle-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .toggle-group label {
+            margin-bottom: 0;
         }
 
         .actions {
@@ -203,6 +278,7 @@
 
     <div id="general" class="tab-content active">
         <div class="settings-grid">
+            <h3 class="section-title" id="secLanguage">Language & Display</h3>
             <div class="form-group">
                 <label id="displayLanguageLabel" for="displayLanguage">Display Language</label>
                 <select id="displayLanguage">
@@ -223,6 +299,7 @@
                 </select>
             </div>
 
+            <h3 class="section-title" id="secSystem">System & Layout</h3>
             <div class="form-group">
                 <label id="maxCacheLabel" for="maxCache">Max Cache Entries</label>
                 <input type="number" id="maxCache" min="1" max="1000">
@@ -246,6 +323,29 @@
                     Only include emails with urgency >= this value in briefings. Default 5.
                 </p>
             </div>
+
+            <h3 class="section-title" id="secTag">Tag Management</h3>
+            <div class="form-group toggle-group">
+                <div class="toggle-header">
+                    <label id="autoTaggingLabel" for="autoTagging">Auto-tag Emails</label>
+                    <label class="switch">
+                        <input type="checkbox" id="autoTagging">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <p id="autoTaggingDesc" class="desc-text">
+                    Automatically apply native Thunderbird tags after summarization.
+                </p>
+            </div>
+
+
+            <div class="form-group" id="groupMaxTags">
+                <label id="maxTagsPerEmailLabel" for="maxTagsPerEmail">Max Tags Per Email</label>
+                <input type="number" id="maxTagsPerEmail" min="1" max="10" placeholder="3">
+                <p id="maxTagsPerEmailDesc" class="desc-text">
+                    Limit the number of tags applied to a single email.
+                </p>
+            </div>
         </div>
         <div class="actions">
             <button id="saveBtn">Save Settings</button>
@@ -255,6 +355,7 @@
 
     <div id="ai" class="tab-content">
         <div class="settings-grid">
+            <h3 class="section-title" id="secApi">Connection & Model</h3>
             <div class="form-group">
                 <label id="apiKeyLabel" for="apiKey">API Key</label>
                 <input type="password" id="apiKey" placeholder="sk-...">
@@ -270,6 +371,7 @@
                 <input type="text" id="model" placeholder="gpt-4o-mini">
             </div>
 
+            <h3 class="section-title" id="secLogic">Performance & Logic</h3>
             <div class="form-group">
                 <label id="temperatureLabel" for="temperature">Temperature (0.0 - 2.0)</label>
                 <input type="number" id="temperature" min="0" max="2" step="0.1" placeholder="1.0">

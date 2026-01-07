@@ -1,788 +1,217 @@
-// background.js
+// background.js - 核心逻辑：消息监听、AI调用、批量任务
 
-// ================= 配置区域 =================
-// API 设置现已移至选项页面配置
-// ===========================================
+console.log("Loading background.js...");
 
-// 全局变量
-let appSettings = {
-    maxCacheEntries: 500,
-    maxRequestsPerSecond: 5,
-    maxConcurrentRequests: 20,
-    popupWidth: 400,
-    temperature: 1.0,
-    briefingUrgency: 5,
-    displayLanguage: "en",
-    outputLanguage: "English"
-};
-let activeTasks = {}; // { headerMessageId: { status: 'loading' | 'success' | 'error', data: ..., error: ... } }
-
-// 初始化
-(async () => {
-    await loadSettings();
-})();
+// 初始化 Promise
+let settingsLoadedPromise = loadSettings();
 
 // 监听消息
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.type === "START_SUMMARY") {
-        // 异步处理，不等待立即返回
-        handleStartSummary(message.payload);
-        return false;
-    } else if (message.type === "GET_STATUS") {
-        const { headerMessageId, messageId } = message.payload;
-        const ids = [];
 
-        if (headerMessageId) ids.push(headerMessageId);
-        if (messageId && messageId !== headerMessageId) ids.push(messageId); // 兼容旧缓存 (按 messageId 存储)
-
-        if (ids.length === 0) {
-            sendResponse(null);
-            return false;
-        }
-
-        // 1. 优先检查内存 (正在处理中，或刚刚处理完)
-        for (const id of ids) {
-            if (activeTasks[id]) {
-                sendResponse(activeTasks[id]);
-                return false;
-            }
-        }
-
-        // 2. 检查持久化存储 (之前处理过的)
+    // GET_STATUS 不需要等待设置加载，直接处理
+    if (message.type === "GET_STATUS") {
         (async () => {
+            const { headerMessageId, messageId } = message.payload;
+            const ids = [];
+
+            if (headerMessageId) ids.push(headerMessageId);
+            if (messageId && messageId !== headerMessageId) ids.push(messageId);
+
+            if (ids.length === 0) {
+                sendResponse(null);
+                return;
+            }
+
+            console.log(`[DEBUG] GET_STATUS checking IDs:`, ids);
+
+            // 1. 优先检查内存
+            for (const id of ids) {
+                if (activeTasks[id]) {
+                    console.log(`[DEBUG] Hit memory task for ${id}`);
+                    sendResponse(activeTasks[id]);
+                    return;
+                }
+            }
+
+            // 2. 检查持久化存储
             for (const id of ids) {
                 const cacheKey = `cache_${id}`;
                 const cached = await browser.storage.local.get(cacheKey);
                 if (cached[cacheKey]) {
+                    console.log(`[DEBUG] Hit storage for ${cacheKey}`);
                     sendResponse({ status: 'success', data: cached[cacheKey] });
                     return;
                 }
             }
+            console.log(`[DEBUG] Cache MISS for IDs:`, ids);
             sendResponse(null);
         })();
-
-        return true; // 异步响应
-    } else if (message.type === "SETTINGS_UPDATED") {
-        // 设置更新，重新加载并裁剪缓存
-        loadSettings().then(() => pruneCache());
-        return false;
-    } else if (message.type === "START_BATCH_SUMMARY") {
-        handleBatchSummary(message.payload);
-        return false;
-    } else if (message.type === "CLEAR_CACHE") {
-        clearCacheEntries().then((removed) => {
-            sendResponse({ removed });
-        }).catch(err => {
-            console.error("Clear cache failed:", err);
-            sendResponse({ error: err.message });
-        });
-        return true; // 异步响应
-    } else if (message.type === "START_BRIEFING") {
-        handleBriefing();
-        return false;
+        return true; // async response for GET_STATUS
     }
+
+    // 其他消息需要等待设置加载
+    (async () => {
+        // 确保配置已加载
+        await settingsLoadedPromise;
+
+        if (message.type === "START_SUMMARY") {
+            handleStartSummary(message.payload);
+        } else if (message.type === "SETTINGS_UPDATED") {
+            settingsLoadedPromise = loadSettings();
+            await settingsLoadedPromise;
+            pruneCache();
+        } else if (message.type === "START_BATCH_SUMMARY") {
+            handleBatchSummary(message.payload);
+        } else if (message.type === "CLEAR_CACHE") {
+            try {
+                const removed = await clearCacheEntries();
+                sendResponse({ removed });
+            } catch (err) {
+                console.error("Clear cache failed:", err);
+                sendResponse({ error: err.message });
+            }
+        } else if (message.type === "START_BRIEFING") {
+            handleBriefing();
+        }
+    })();
+
+    // 对于需要 sendResponse 的其他类型 (CLEAR_CACHE)，我们也返回 true。
+    if (["CLEAR_CACHE"].includes(message.type)) return true;
+
+    return false;
 });
 
-// ... (existing code) ...
+// 处理单条摘要请求
+async function handleStartSummary({ messageId, forceUpdate }) {
+    if (!messageId) return;
 
-// === Briefing Logic ===
+    const cacheKey = `cache_${messageId}`;
 
-async function handleBriefing() {
-    console.log("Starting briefing generation...");
-    const canQueryMessages = !!(browser.messages && typeof browser.messages.query === 'function');
-    try {
-        // 1. Get cache index
-        const indexKey = "cache_index";
-        const indexData = await browser.storage.local.get(indexKey);
-        const index = indexData[indexKey] || [];
-
-        if (index.length === 0) {
-            throw new Error("No cached emails found.");
-        }
-
-        // 2. Filter by time (last 30 days)
-        const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
-        const recentItems = index.filter(item => item.timestamp > thirtyDaysAgo);
-
-        console.log(`Found ${recentItems.length} cached emails in the last 30 days.`);
-
-        // 3. Fetch details and filter by urgency > 6
-        const highImportanceEmails = [];
-
-        for (const item of recentItems) {
-            const cacheKey = `cache_${item.id}`;
-            const cached = await browser.storage.local.get(cacheKey);
-            let data = cached[cacheKey];
-
-            // Use configured threshold (default 5)
-            // Note: User asked for adjustable threshold, default 5.
-            // We interpret this as "include if score >= threshold".
-            const threshold = appSettings.briefingUrgency || 5;
-
-            if (data && data.urgency_score >= threshold) {
-                // Backfill subject if missing (for old cache)
-                if (!data.subject && canQueryMessages) {
-                    try {
-                        // Try to find the message to get the subject
-                        // item.id is the headerMessageId
-                        const queryPage = await browser.messages.query({ headerMessageId: item.id });
-                        if (queryPage.messages && queryPage.messages.length > 0) {
-                            data.subject = queryPage.messages[0].subject;
-                            data.author = queryPage.messages[0].author;
-                            // Optional: update cache with new metadata
-                            await saveToCache(item.id, data);
-                        } else {
-                            data.subject = "Unknown Subject";
-                        }
-                    } catch (e) {
-                        console.warn(`Failed to fetch subject for ${item.id}:`, e);
-                        data.subject = "Unknown Subject";
-                    }
-                } else if (!data.subject) {
-                    data.subject = "Unknown Subject";
-                }
-
-                if (!data.author) {
-                    data.author = "Unknown Author";
-                }
-
-                highImportanceEmails.push({
-                    id: item.id,
-                    ...data
-                });
-            }
-        }
-
-        console.log(`Found ${highImportanceEmails.length} high importance emails.`);
-
-        if (highImportanceEmails.length === 0) {
-            await saveBriefing(`最近一个月没有发现重要度大于等于 ${appSettings.briefingUrgency || 5} 的邮件。`);
-            return;
-        }
-
-        // 4. Construct Prompt
-        // Sort by Date Ascending (Oldest -> Newest) so the AI sees the timeline correctly
-        highImportanceEmails.sort((a, b) => {
-            const dateA = new Date(a.date || 0);
-            const dateB = new Date(b.date || 0);
-            return dateA - dateB;
-        });
-
-        const summaries = highImportanceEmails.map((email, idx) => {
-            // Include date in the summary line for AI context
-            const dateStr = email.date ? new Date(email.date).toLocaleString() : "Unknown Date";
-            return `${idx + 1}. [${dateStr}] [Urgency: ${email.urgency_score}] ${email.summary} (Keywords: ${email.keywords ? email.keywords.join(", ") : ""})`;
-        }).join("\n");
-
-        // 5. Call AI
-        const briefingContent = await callAIBriefing(summaries);
-
-        // 6. Append Sources
-        const sourceList = highImportanceEmails.map((email, idx) => {
-            return `${idx + 1}. ${email.subject || "No Subject"}`;
-        }).join("\n");
-
-        const sourceHeaders = {
-            "English": "[Sources]",
-            "Simplified Chinese": "[参考来源]",
-            "French": "[Sources]",
-            "Japanese": "[ソース]"
-        };
-        const header = sourceHeaders[appSettings.outputLanguage] || "[Sources]";
-        const finalContent = briefingContent + `\n\n----------------\n${header}\n` + sourceList;
-
-        // 7. Save Result
-        await saveBriefing(finalContent);
-        console.log("Briefing generated and saved.");
-
-    } catch (error) {
-        console.error("Briefing failed:", error);
-        await saveBriefing(`生成简报失败: ${error.message}`);
-    }
-}
-
-async function callAIBriefing(summaries) {
-    const outputLang = appSettings.outputLanguage || "Simplified Chinese";
-    const now = new Date().toLocaleString(); // Current Time
-
-    const systemPrompt = `
-You are an executive assistant. Your job is to summarize a list of high-importance emails into a concise briefing.
-The user will provide a list of email summaries with their timestamps.
-Please generate a "New Briefing" (新简报) in ${outputLang}.
-
-**IMPORTANT INSTRUCTION**:
-- **Analyze based on the Current Time**: ${now}.
-- If an item has a deadline or date, interpret it relative to Current Time (e.g. "Tomorrow", "Next Week").
-
-Requirements:
-1.  **Overview**: Start with a 1-sentence overview of the key themes.
-2.  **Key Items / Reminders**: Group related emails or list critical ones.
-    *   **SORTING RULE**: You MUST list these items in **Chronological Order** (Earliest deadline/event FIRST, Later ones LAST).
-    *   If an item has no specific future date, put it after the timed items.
-3.  **Actionable**: Highlight immediate actions.
-4.  **Tone**: Professional, concise, and clear.
-5.  **Format**: Plain text (clean formatting, bullet points).
-`;
-
-    const userPrompt = `
-Current Time: ${now}
-
-Here are the summaries of high-importance emails from the last month (Sorted Oldest -> Newest):
-
-${summaries}
-
-Please write the briefing. Use ${outputLang} for output.
-在最开始的部分出“时间线”板块，把事件按照时间顺序排列（包括过去和未来）（指的是执行时间）。
-`;
-
-    /// 简报代码——————————————————
-    if (!appSettings.apiKey) {
-        throw new Error("未配置 API Key");
-    }
-
-    const apiUrl = appSettings.apiUrl || "https://api.openai.com/v1/chat/completions";
-    const model = appSettings.model || "gpt-5-mini";
-    const temperature = 1;
-
-    const response = await fetch(apiUrl, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${appSettings.apiKey}`
-        },
-        body: JSON.stringify({
-            model: model,
-            messages: [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: userPrompt }
-            ],
-            temperature: temperature
-        })
-    });
-
-    if (!response.ok) {
-        const err = await response.text();
-        throw new Error(`API Request Failed: ${response.status} - ${err}`);
-    }
-
-    const data = await response.json();
-    return data.choices[0].message.content;
-}
-
-async function saveBriefing(content) {
-    await browser.storage.local.set({
-        latest_briefing: {
-            content: content,
-            timestamp: Date.now()
-        }
-    });
-}
-
-
-// 加载设置
-async function loadSettings() {
-    const data = await browser.storage.local.get("app_settings");
-    const stored = data.app_settings || {};
-    appSettings = { ...appSettings, ...stored };
-
-    // 兜底与校验
-    appSettings.maxCacheEntries = Math.max(1, parseInt(appSettings.maxCacheEntries) || 500);
-    appSettings.maxRequestsPerSecond = Math.max(1, parseInt(appSettings.maxRequestsPerSecond) || 5);
-    appSettings.maxConcurrentRequests = Math.max(1, parseInt(appSettings.maxConcurrentRequests) || 20);
-    appSettings.popupWidth = Math.max(300, parseInt(appSettings.popupWidth) || 400);
-    appSettings.temperature = isNaN(parseFloat(appSettings.temperature)) ? 1.0 : parseFloat(appSettings.temperature);
-    appSettings.briefingUrgency = Math.max(1, parseInt(appSettings.briefingUrgency) || 5);
-    appSettings.displayLanguage = stored.displayLanguage || appSettings.displayLanguage || "en";
-    appSettings.outputLanguage = stored.outputLanguage || appSettings.outputLanguage || "English";
-}
-
-// 处理总结请求
-async function handleStartSummary(payload) {
-    const { headerMessageId, messageId, author, subject, date, forceRegen } = payload;
-    const cacheId = headerMessageId || messageId;
-    const legacyCacheId = headerMessageId && messageId && headerMessageId !== messageId ? messageId : null;
-    const cacheIdsToCheck = legacyCacheId ? [cacheId, legacyCacheId] : [cacheId];
-
-    if (!cacheId) {
-        console.warn("Missing message identifier for summary.");
-        return;
-    }
-
-    // 如果正在处理且不是强制重新生成，则忽略
-    for (const id of cacheIdsToCheck) {
-        if (activeTasks[id] && activeTasks[id].status === 'loading' && !forceRegen) {
+    // 如果不是强制更新，先查缓存 (双重检查，虽然popup也查过)
+    if (!forceUpdate) {
+        const cached = await browser.storage.local.get(cacheKey);
+        if (cached[cacheKey]) {
+            console.log(`[Background] Cache hit for ${messageId}`);
+            // 通知前端 (可选，一般前端会轮询 GET_STATUS)
             return;
         }
     }
 
-    // 更新状态为 Loading
-    activeTasks[cacheId] = { status: 'loading' };
-    broadcastUpdate(cacheId, 'loading', {}, subject); // Pass subject
+    // 标记为正在加载
+    activeTasks[messageId] = { status: 'loading' };
 
     try {
-        // 1. 检查缓存 (除非强制重新生成)
-        if (!forceRegen) {
-            for (const id of cacheIdsToCheck) {
-                const cacheKey = `cache_${id}`;
-                const cached = await browser.storage.local.get(cacheKey);
-                if (cached[cacheKey]) {
-                    const result = cached[cacheKey];
+        // 1. 获取邮件详情
+        const msgPart = await messenger.messages.getFull(messageId);
+        const { author, subject, date } = msgPart.headers || {};
+        const emailBody = parseEmailBody(msgPart);
 
-                    // 命中缓存：更新索引，并在需要时迁移到规范的 cacheId
-                    if (id === cacheId) {
-                        await touchCacheIndex(cacheId);
-                    } else {
-                        await saveToCache(cacheId, result);
-                    }
+        // 2. 调用 AI
+        const summary = await callAI(emailBody, author, subject, date, messageId);
 
-                    activeTasks[cacheId] = { status: 'success', data: result };
-                    broadcastUpdate(cacheId, 'success', { data: result }, subject); // Pass subject
-                    return;
-                }
-            }
-        }
-
-        // 2. 获取邮件内容
-        let fullMessage = await browser.messages.getFull(messageId);
-        let emailContent = parseEmailBody(fullMessage);
-
-        // Fallback: 如果常规解析失败，尝试使用 getRaw 获取原始内容并手动解析
-        // 这种情况常见于某些 Outlook 嵌套回复，getFull 返回的 parts 中 body 为空
-        if ((!emailContent || emailContent.trim() === "") && browser.messages.getRaw) {
-            console.log("Standard parsing failed, attempting raw content fallback...");
-            try {
-                const raw = await browser.messages.getRaw(messageId);
-                if (raw) {
-                    const rawContent = parseRawEmailContent(raw);
-                    if (rawContent && rawContent.trim() !== "") {
-                        emailContent = rawContent;
-                        console.log("Raw content fallback successful.");
-                    }
-                }
-            } catch (rawErr) {
-                console.warn("Raw content fallback failed:", rawErr);
-            }
-        }
-
-        if (!emailContent || emailContent.trim() === "") {
-            throw new Error("无法提取到邮件正文，可能是纯图片或特殊格式。");
-        }
-
-        if (emailContent.length > 5000) {
-            emailContent = emailContent.substring(0, 5000) + "...(内容过长已截断)";
-        }
-
-        // 3. 调用 AI
-        const jsonResult = await callAI(emailContent, author, subject, date); // Pass date
-
-        // 4. 保存结果
-        const resultWithMetadata = { ...jsonResult, subject, author, date };
-        activeTasks[cacheId] = { status: 'success', data: resultWithMetadata };
-        broadcastUpdate(cacheId, 'success', { data: resultWithMetadata }, subject); // Pass subject
-        saveToCache(cacheId, resultWithMetadata);
-
-    } catch (error) {
-        console.error("Summary failed:", error);
-        activeTasks[cacheId] = { status: 'error', error: error.message };
-        broadcastUpdate(cacheId, 'error', { error: error.message }, subject); // Pass subject
-    }
-}
-
-// 广播状态更新给 Popup
-function broadcastUpdate(headerMessageId, status, payload = {}, subject = null) {
-    const msg = {
-        type: "SUMMARY_UPDATE",
-        payload: {
-            headerMessageId,
-            status,
-            subject, // Include subject
-            ...payload
-        }
-    };
-    browser.runtime.sendMessage(msg).catch(() => {
-        // Popup 可能已关闭，忽略错误
-    });
-}
-
-// 简单的令牌桶/并发调度器：控制每秒请求数与同时并发数
-function createRateLimitedRunner(maxConcurrent, maxPerSecond) {
-    let active = 0;
-    let queue = [];
-    let timestamps = [];
-
-    const runNext = () => {
-        if (queue.length === 0) return;
-        if (active >= maxConcurrent) return;
-
-        const now = Date.now();
-        timestamps = timestamps.filter(t => now - t < 1000);
-
-        if (timestamps.length >= maxPerSecond) {
-            const wait = 1000 - (now - timestamps[0]) + 5;
-            setTimeout(runNext, wait);
-            return;
-        }
-
-        const next = queue.shift();
-        timestamps.push(Date.now());
-        next();
-    };
-
-    return function schedule(task) {
-        return new Promise((resolve) => {
-            const wrapped = async () => {
-                active++;
-                try {
-                    const result = await task();
-                    resolve(result);
-                } catch (err) {
-                    console.error("Task failed:", err);
-                    resolve(null); // 保证队列不中断
-                } finally {
-                    active--;
-                    runNext();
-                }
-            };
-            queue.push(wrapped);
-            runNext();
-        });
-    };
-}
-
-async function handleBatchSummary(payload) {
-    console.log("handleBatchSummary called");
-    try {
-        // 通知开始
-        console.log("Broadcasting BATCH_START");
-        browser.runtime.sendMessage({ type: "BATCH_START" }).catch(() => { });
-
-        console.log("Listing accounts...");
-
-        const accounts = await browser.accounts.list();
-        const canQueryMessages = !!(browser.messages && typeof browser.messages.query === 'function');
-        if (!accounts || accounts.length === 0) {
-            throw new Error("没有找到邮件账户");
-        }
-
-        // 1. Find ALL inboxes from ALL accounts
-        let inboxes = [];
-        for (const account of accounts) {
-            for (const folder of account.folders) {
-                if (folder.type === "inbox") {
-                    inboxes.push(folder);
-                }
-            }
-        }
-
-        if (inboxes.length === 0) {
-            throw new Error("没有找到收件箱");
-        }
-        console.log(`Found ${inboxes.length} inboxes.`);
-
-        // 2. Query messages from ALL inboxes
-        let allMessages = [];
-        const targetCount = (payload && payload.targetCount) ? payload.targetCount : 40;
-        console.log(`Targeting ${targetCount} emails...`);
-
-        const ranges = [7, 30, 90]; // Try 7 days, then 30, then 90
-
-        // Helper to query a single inbox
-        const queryInbox = async (inbox, days) => {
-            if (!canQueryMessages) {
-                return [];
-            }
-            const fromDate = new Date();
-            fromDate.setDate(fromDate.getDate() - days);
-            try {
-                const page = await browser.messages.query({
-                    folder: inbox,
-                    fromDate: fromDate
-                });
-                return page.messages || [];
-            } catch (err) {
-                console.error(`Query failed for inbox ${inbox.name} (${days} days):`, err);
-                return [];
-            }
+        // 3. 存入缓存
+        const resultData = {
+            summary: summary.summary,
+            keywords: summary.keywords,
+            urgency_score: summary.urgency_score,
+            urgency_reason: summary.urgency_reason,
+            generated_at: Date.now()
         };
 
-        // Strategy: Query all inboxes for the smallest range first. 
-        // If total < targetCount, try larger range for all.
-        // This avoids fetching too much if recent emails are sufficient.
-
-        for (const days of ranges) {
-            console.log(`Querying all inboxes for last ${days} days...`);
-
-            const results = await Promise.all(inboxes.map(inbox => queryInbox(inbox, days)));
-            allMessages = results.flat();
-
-            // Deduplicate by headerMessageId (just in case)
-            const seen = new Set();
-            allMessages = allMessages.filter(msg => {
-                const id = msg.headerMessageId || msg.id;
-                if (seen.has(id)) return false;
-                seen.add(id);
-                return true;
-            });
-
-            console.log(`Total unique messages found: ${allMessages.length}`);
-
-            if (allMessages.length >= targetCount) break;
-        }
-
-        // Fallback: If query returns 0 (e.g. API limitations), try list() on each inbox
-        if (!canQueryMessages || allMessages.length === 0) {
-            console.log("Query returned 0, falling back to standard list() on all inboxes...");
-            const results = await Promise.all(inboxes.map(async inbox => {
-                try {
-                    const page = await browser.messages.list(inbox);
-                    return page.messages || [];
-                } catch (e) {
-                    console.error("List failed for inbox:", e);
-                    return [];
-                }
-            }));
-            allMessages = results.flat();
-        }
-
-        // 3. Sort and Slice
-        // Sort by date descending (newest first)
-        allMessages.sort((a, b) => b.date - a.date);
-
-        const recent40 = allMessages.slice(0, targetCount);
-        const total = recent40.length;
-
-        if (total === 0) {
-            throw new Error("所有收件箱均没有邮件");
-        }
-
-        console.log(`Processing top ${total} messages...`);
-
-        const maxPerSecond = appSettings.maxRequestsPerSecond || 5;
-        // User requested high concurrency (requests sent at rate limit, but processing in parallel)
-        // We set a high concurrent limit (e.g. 50) so the rate limiter (maxPerSecond) becomes the bottleneck for *starting*,
-        // but slow API responses don't block new requests from starting.
-        const maxConcurrent = appSettings.maxConcurrentRequests || 20;
-        const schedule = createRateLimitedRunner(maxConcurrent, maxPerSecond);
-
-        let finished = 0;
-        const tasks = recent40.map((msg) => {
-            const headerId = msg.headerMessageId || msg.id;
-            const payload = {
-                headerMessageId: headerId,
-                messageId: msg.id,
-                author: msg.author,
-                subject: msg.subject,
-                date: msg.date,
-                forceRegen: false
-            };
-
-            return schedule(async () => {
-                try {
-                    await handleStartSummary(payload);
-                } finally {
-                    finished++;
-                    browser.runtime.sendMessage({
-                        type: "BATCH_PROGRESS",
-                        payload: { current: finished, total: total }
-                    }).catch(() => { });
-                }
-            });
-        });
-
-        await Promise.all(tasks);
-
-        // 完成
-        browser.runtime.sendMessage({ type: "BATCH_COMPLETE" }).catch(() => { });
-
-    } catch (e) {
-        console.error("Batch summary failed", e);
-        browser.runtime.sendMessage({
-            type: "BATCH_ERROR",
-            payload: { error: e.message }
-        }).catch(() => { });
-    }
-}
-
-// === 缓存逻辑 (带时间戳) ===
-
-async function saveToCache(headerMessageId, data) {
-    // 1. 保存数据
-    const cacheKey = `cache_${headerMessageId}`;
-    await browser.storage.local.set({ [cacheKey]: data });
-
-    // 2. 更新索引
-    await touchCacheIndex(headerMessageId);
-}
-
-async function touchCacheIndex(headerMessageId) {
-    const indexKey = "cache_index";
-    let indexData = await browser.storage.local.get(indexKey);
-    let index = indexData[indexKey] || [];
-
-    // 移除旧的记录 (通过 ID 查找)
-    index = index.filter(item => item.id !== headerMessageId);
-
-    // 添加新的记录到头部，带时间戳
-    index.unshift({
-        id: headerMessageId,
-        timestamp: Date.now()
-    });
-
-    // 保存索引
-    await browser.storage.local.set({ [indexKey]: index });
-
-    // 立即裁剪
-    await pruneCache();
-}
-
-async function pruneCache() {
-    const indexKey = "cache_index";
-    let indexData = await browser.storage.local.get(indexKey);
-    let index = indexData[indexKey] || [];
-
-    if (index.length > appSettings.maxCacheEntries) {
-        const toRemove = index.slice(appSettings.maxCacheEntries);
-        index = index.slice(0, appSettings.maxCacheEntries);
-
-        // 删除多余的数据
-        const keysToRemove = toRemove.map(item => `cache_${item.id}`);
-        await browser.storage.local.remove(keysToRemove);
-        console.log(`Pruned ${keysToRemove.length} cache entries.`);
+        await browser.storage.local.set({ [cacheKey]: resultData });
 
         // 更新索引
+        const indexKey = "cache_index";
+        const indexData = await browser.storage.local.get(indexKey);
+        let index = indexData[indexKey] || [];
+
+        // 移除旧条目
+        index = index.filter(item => item.id !== messageId);
+        // 添加新条目
+        index.unshift({
+            id: messageId,
+            subject: subject,
+            author: author,
+            date: date, // 邮件时间
+            generated_at: Date.now(),
+            keywords: summary.keywords
+        });
+
         await browser.storage.local.set({ [indexKey]: index });
-    }
-}
 
-// 清空缓存 (仅删除缓存相关的键，不动设置)
-async function clearCacheEntries() {
-    const all = await browser.storage.local.get(null);
-    const cacheKeys = Object.keys(all).filter(k => k === "cache_index" || k.startsWith("cache_"));
+        // 完成
+        delete activeTasks[messageId];
 
-    if (cacheKeys.length > 0) {
-        await browser.storage.local.remove(cacheKeys);
-    }
-
-    // 清理内存中的任务状态
-    activeTasks = {};
-    return cacheKeys.length;
-}
-
-// === AI 核心逻辑 ===
-
-function parseEmailBody(part) {
-    if (!part) return "";
-
-    const type = (part.contentType || "").toLowerCase();
-
-    // 1. 处理 multipart/alternative
-    // 采用“候选 fallback”策略：优先取富文本，如果结果为空，则回退到纯文本
-    if (type.includes("multipart/alternative") && part.parts) {
-        let candidates = [];
-
-        // A. 优先候选: HTML 或 Related (富文本)
-        const richPart = part.parts.find(p => {
-            const t = (p.contentType || "").toLowerCase();
-            return t.includes("text/html") || t.includes("multipart/related");
-        });
-        if (richPart) candidates.push(richPart);
-
-        // B. 次优候选: 纯文本
-        const plainPart = part.parts.find(p => {
-            const t = (p.contentType || "").toLowerCase();
-            return t.includes("text/plain");
-        });
-        if (plainPart) candidates.push(plainPart);
-
-        // C. 其他候选 (兜底)
-        part.parts.forEach(p => {
-            if (p !== richPart && p !== plainPart) candidates.push(p);
-        });
-
-        // 按优先级尝试提取，直到获得非空内容
-        for (const candidate of candidates) {
-            const content = parseEmailBody(candidate);
-            if (content && content.trim().length > 0) {
-                return content;
+        // 通知前端更新
+        browser.runtime.sendMessage({
+            type: "SUMMARY_UPDATE",
+            payload: {
+                headerMessageId: messageId, // Use messageId as the identifier here logic-wise
+                status: 'success',
+                data: resultData
             }
-        }
-        return ""; // 所有部分都无法提取有效文本
+        });
+
+        // 触发缓存修剪
+        pruneCache();
+
+    } catch (err) {
+        console.error(`[Background] Error processing ${messageId}:`, err);
+        activeTasks[messageId] = { status: 'error', error: err.message };
+        browser.runtime.sendMessage({
+            type: "SUMMARY_UPDATE",
+            payload: { headerMessageId: messageId, status: 'error', error: err.message }
+        });
     }
-
-    // 2. 如果是叶子节点 (包含 body)
-    if (part.body && typeof part.body === "string") {
-        // 策略: 只要是 text/* 类型，或者是空类型(默认text)，都尝试提取
-        // 特殊处理 HTML
-        if (type.includes("html")) { // 匹配 text/html, application/xhtml+xml 等
-            let text = part.body;
-
-            // 预处理：移除干扰标签
-            text = text.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-                .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-                .replace(/<!--[\s\S]*?-->/g, '');
-
-            // 格式化：将块级标签转换为换行符
-            text = text.replace(/<br\s*\/?>/gi, '\n')
-                .replace(/<\/p>/gi, '\n')
-                .replace(/<\/div>/gi, '\n')
-                .replace(/<\/tr>/gi, '\n')
-                .replace(/<\/h[1-6]>/gi, '\n');
-
-            // 移除所有剩余 HTML 标签
-            text = text.replace(/<[^>]*>?/gm, ' ');
-
-            // 解码实体
-            text = text.replace(/&nbsp;/g, ' ')
-                .replace(/&amp;/g, '&')
-                .replace(/&lt;/g, '<')
-                .replace(/&gt;/g, '>')
-                .replace(/&quot;/g, '"')
-                .replace(/&#39;/g, "'");
-
-            return text.replace(/[ \t\r\f]+/g, ' ') // 压缩水平空白
-                .replace(/(\n\s*)+/g, '\n')  // 压缩垂直空白
-                .trim();
-        }
-        // 宽松匹配: 空类型 OR 任何 text/ 类型
-        else if (type === "" || type.includes("text/")) {
-            return part.body.trim();
-        }
-        else {
-            // 其他类型 (如 image/...) 忽略
-            return "";
-        }
-    }
-
-    // 3. 处理其他容器类型 (如 multipart/mixed, multipart/related, message/rfc822)
-    if (part.parts) {
-        let str = "";
-        for (let subPart of part.parts) {
-            let content = parseEmailBody(subPart);
-            if (content && content.trim().length > 0) {
-                str += content + "\n";
-            }
-        }
-        return str.trim();
-    }
-
-    return "";
 }
 
-async function callAI(text, author, subject, emailDate) {
+// AI 核心调用函数
+async function callAI(text, author, subject, emailDate, messageId) {
     const now = new Date().toLocaleString();
     const sentTime = emailDate ? new Date(emailDate).toLocaleString() : "Unknown";
     const outputLang = appSettings.outputLanguage || "Simplified Chinese";
 
-    // 1. System Prompt: 指令、角色、格式
-    const systemPrompt = `
+    // 0. Fetch Tags if enabled
+    let nameToKeyMap = {};
+    let tagsListFormatted = "";
+
+    if (appSettings.autoTagging) {
+        nameToKeyMap = await getTagsMap();
+        const tagNames = Object.keys(nameToKeyMap);
+        if (tagNames.length > 0) {
+            tagsListFormatted = tagNames.map(name => `- "${name}"`).join("\n");
+        }
+        console.log("[AutoTag] Tag Names for AI:", tagsListFormatted);
+    }
+
+    // 1. System Prompt
+    let systemPrompt = `
 You are a smart email assistant. Please analyze the email provided by the user and output a JSON object with the following schema:
 {
     "summary": "string (Summarize the content in ${outputLang}, < 100 words)",
     "keywords": ["string (Short keywords, 2-4 words in ${outputLang}, e.g. [Invoice], [Meeting])"],
-    "action_items": ["string (List of action items in ${outputLang})"],
+    "urgency_score": number (1-10),
+    "urgency_reason": "string (解释打分原因（非复述内容），一句话，最多1次逗号1次句号,简述即可。Given in ${outputLang}"`;
+
+    if (tagsListFormatted) {
+        systemPrompt = `
+You are a smart email assistant. Please analyze the email provided by the user and output a JSON object with the following schema:
+{
+    "summary": "string (Summarize the content in ${outputLang}, < 100 words)",
+    "keywords": ["string (Short keywords, 2-4 words in ${outputLang}, e.g. [Invoice], [Meeting])"],
+    "tags": ["string (The Tag Name from the list below. Return [] if no match.)"],
     "urgency_score": number (1-10),
     "urgency_reason": "string (解释打分原因（非复述内容），一句话，最多1次逗号1次句号,简述即可。Given in ${outputLang}"
 }
+
+Select tags from this list (Use the 'Name'):
+${tagsListFormatted}`;
+    } else {
+        systemPrompt += `
+}`;
+    }
+
+    systemPrompt += `
 
 Urgency Score Rules (1-10):
 - 10（危急）：需要立即采取行动。存在财务损失风险，或直接由CEO/老师下达的命令，或者对我的私人对话。
@@ -803,7 +232,7 @@ Constraint:
 - Summary, keywords, action_items, and urgency_reason MUST be in ${outputLang}.
 `;
 
-    // 2. User Prompt: 纯上下文信息
+    // 2. User Prompt
     const userPrompt = `
 Context:
 Current Time: ${now}
@@ -849,22 +278,282 @@ Use ${outputLang} for output.
     const data = await response.json();
     const content = data.choices[0].message.content;
 
+    // 3. Try to parse JSON
     try {
-        const match = content.match(/\{[\s\S]*\}/);
-        if (match) {
-            return JSON.parse(match[0]);
-        } else {
-            throw new Error("No JSON found in response");
+        let cleanJson = content.replace(/```json/g, "").replace(/```/g, "").trim();
+        cleanJson = cleanJson.replace(/[\u0000-\u0009\u000B-\u001F\u007F-\u009F]/g, "");
+
+        const parsedData = JSON.parse(cleanJson);
+
+        // 4. Auto Tagging Implementation
+        if (appSettings.autoTagging && parsedData.tags && parsedData.tags.length > 0 && messageId) {
+            try {
+                const maxTags = appSettings.maxTagsPerEmail || 3;
+                let aiTagNames = parsedData.tags;
+
+                // Map Names back to Keys
+                let finalKeys = [];
+                let invalidNames = [];
+
+                aiTagNames.forEach(name => {
+                    const key = nameToKeyMap[name];
+                    if (key) {
+                        finalKeys.push(key);
+                    } else {
+                        invalidNames.push(name);
+                    }
+                });
+
+                if (invalidNames.length > 0) {
+                    console.warn(`[AutoTag] AI suggested tags not found in system: ${invalidNames.join(", ")}`);
+                }
+
+                // Slice to max count
+                finalKeys = finalKeys.slice(0, maxTags);
+
+                if (finalKeys.length > 0) {
+                    await messenger.messages.update(messageId, {
+                        tags: finalKeys
+                    });
+                    console.log(`[AutoTag] Applied keys: ${finalKeys} (from names: ${aiTagNames})`);
+                }
+            } catch (tagErr) {
+                console.error(`[AutoTag] Failed to apply tags: ${tagErr.message}`);
+            }
         }
+
+        return parsedData;
     } catch (e) {
         console.error("JSON Parse Error:", e);
-        return {
-            summary: content,
-            tags: ["解析失败"],
-            action_items: [],
-            urgency_score: 0,
-            urgency_reason: "无法解析 AI 返回的 JSON"
-        };
+        console.log("Raw Output:", content);
+        throw new Error("AI 返回: " + content.substring(0, 100));
     }
 }
 
+// 批量处理
+async function handleBatchSummary(payload) {
+    let messageIds = [];
+    // 1. 获取消息列表 (Robust Fetching)
+    if (Array.isArray(payload)) {
+        messageIds = payload;
+    } else if (payload && payload.targetCount) {
+        try {
+            let mailTab = await browser.mailTabs.getCurrent();
+            if (mailTab && mailTab.displayedFolder) {
+                console.log(`[Batch] Fetching messages from: ${mailTab.displayedFolder.name}`);
+
+                // 策略：使用 query API 获取最近的邮件 (类似老版本逻辑)
+                // 逐步扩大范围: 7天 -> 30天 -> 90天 -> 1年
+                const ranges = [7, 30, 90, 365];
+                let foundMessages = [];
+
+                for (const days of ranges) {
+                    const fromDate = new Date();
+                    fromDate.setDate(fromDate.getDate() - days);
+
+                    const page = await browser.messages.query({
+                        folder: mailTab.displayedFolder,
+                        fromDate: fromDate
+                    });
+
+                    if (page.messages && page.messages.length > 0) {
+                        foundMessages = page.messages;
+                        // 如果数量够了，就不扩大范围了
+                        if (foundMessages.length >= payload.targetCount) break;
+                    }
+                }
+
+                // 按时间倒序排列 (最新的在前)
+                foundMessages.sort((a, b) => (b.date || 0) - (a.date || 0));
+
+                // 截取目标数量
+                const targetMessages = foundMessages.slice(0, payload.targetCount);
+                messageIds = targetMessages.map(m => m.id);
+
+                console.log(`[Batch] Found ${messageIds.length} messages (Target: ${payload.targetCount})`);
+            } else {
+                console.warn("[Batch] No displayed folder found.");
+            }
+        } catch (e) {
+            console.error("[Batch] Failed to auto-fetch messages:", e);
+        }
+    }
+
+    if (!messageIds || messageIds.length === 0) {
+        console.warn("[Batch] No messages to process.");
+        return;
+    }
+
+    // 更新总数为实际找到的数量
+    browser.runtime.sendMessage({ type: "BATCH_START", payload: { total: messageIds.length } });
+
+    // 真正的并发处理
+
+    // 进度追踪
+    let processedCount = 0;
+    const updateProgress = () => {
+        processedCount++;
+        browser.runtime.sendMessage({
+            type: "BATCH_PROGRESS",
+            payload: { current: processedCount, total: messageIds.length }
+        });
+    };
+
+    // 辅助: 并发执行器
+    async function runPool(items, concurrency, fn) {
+        const results = [];
+        const executing = new Set();
+
+        for (const item of items) {
+            // 封装任务：执行核心逻辑 + 进度更新
+            const p = Promise.resolve().then(() => fn(item)).finally(() => {
+                executing.delete(p);
+                updateProgress();
+            });
+
+            results.push(p);
+            executing.add(p);
+
+            // 如果达到并发上限，等待其中一个完成
+            if (executing.size >= concurrency) {
+                await Promise.race(executing);
+            }
+
+            // 速率限制 (Rate Limit): 控制启动频率
+            if (appSettings.maxRequestsPerSecond > 0) {
+                await new Promise(r => setTimeout(r, 1000 / appSettings.maxRequestsPerSecond));
+            }
+        }
+
+        return Promise.all(results);
+    }
+
+    // 任务逻辑
+    const processItem = async (msgId) => {
+        const cacheKey = `cache_${msgId}`;
+        const cached = await browser.storage.local.get(cacheKey);
+
+        if (!cached[cacheKey]) {
+            console.log(`[Batch] Processing ${msgId}...`);
+            // 这里的 catch 非常重要，防止单个任务失败炸掉整个 Pool
+            try {
+                await handleStartSummary({ messageId: msgId, forceUpdate: false });
+            } catch (e) {
+                console.error(`[Batch] Error in worker for ${msgId}`, e);
+            }
+        } else {
+            console.log(`[Batch] Skipped ${msgId}, already cached.`);
+        }
+    };
+
+    // 启动并发池
+    const concurrency = appSettings.maxConcurrentRequests || 5;
+    await runPool(messageIds, concurrency, processItem);
+
+    console.log("[Batch] All done.");
+    browser.runtime.sendMessage({ type: "BATCH_COMPLETE" });
+}
+
+// 处理简报
+async function handleBriefing() {
+    console.log("Starting briefing generation...");
+    const canQueryMessages = !!(browser.messages && typeof browser.messages.query === 'function');
+    try {
+        const indexKey = "cache_index";
+        const indexData = await browser.storage.local.get(indexKey);
+        const index = indexData[indexKey] || [];
+
+        // 筛选过去24小时的邮件摘要
+        const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+        const recentSummaries = [];
+
+        // 1. 从缓存索引中寻找已生成的摘要
+        for (const item of index) {
+            if (item.generated_at > cutoff) {
+                // 读取完整摘要内容
+                const cacheKey = `cache_${item.id}`;
+                const detailData = await browser.storage.local.get(cacheKey);
+                if (detailData[cacheKey]) {
+                    recentSummaries.push({
+                        ...item,
+                        summary: detailData[cacheKey].summary,
+                        urgency: detailData[cacheKey].urgency_score || 0
+                    });
+                }
+            }
+        }
+
+        if (recentSummaries.length === 0) {
+            console.warn("No recent summaries found for briefing.");
+            return;
+        }
+
+        console.log(`Generating briefing from ${recentSummaries.length} emails...`);
+
+        // 3. 构造简报 Prompt
+        const summariesText = recentSummaries.map((s, i) => {
+            return `Email ${i + 1}:
+Subject: ${s.subject}
+From: ${s.author}
+Urgency: ${s.urgency}
+Summary: ${s.summary}
+`;
+        }).join("\n---\n");
+
+        const outputLang = appSettings.outputLanguage || "Simplified Chinese";
+
+        const briefingPrompt = `
+You are a executive secretary. Based on the following email summaries from the last 24 hours, generate a "Daily Briefing".
+
+Format:
+1. **Overview**: 1-2 sentences overall status.
+2. **Top Priorities**: List 3 most urgent items (High urgency score).
+3. **Key Themes**: Group other items by topic (e.g. Work, News, Personal).
+4. **Action Plan**: Suggested order of processing.
+
+Output in ${outputLang}. Use Markdown.
+
+Email Summaries:
+${summariesText}
+`;
+
+        // 4. 调用 AI 生成简报
+        if (!appSettings.apiKey) return;
+
+        const apiUrl = appSettings.apiUrl || "https://api.openai.com/v1/chat/completions";
+        const model = appSettings.model || "gpt-4o-mini";
+
+        const response = await fetch(apiUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${appSettings.apiKey}`
+            },
+            body: JSON.stringify({
+                model: model,
+                messages: [
+                    { role: "system", content: "You are a helpful assistant." },
+                    { role: "user", content: briefingPrompt }
+                ],
+                temperature: 0.5
+            })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            const briefingContent = data.choices[0].message.content;
+
+            // 存储简报结果
+            await browser.storage.local.set({
+                "daily_briefing": {
+                    content: briefingContent,
+                    generated_at: Date.now()
+                }
+            });
+            console.log("Briefing generated and saved.");
+        }
+
+    } catch (e) {
+        console.error("Briefing failed:", e);
+    }
+}

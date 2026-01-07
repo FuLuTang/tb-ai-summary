@@ -16,11 +16,15 @@
         "messagesRead",
         "accountsRead",
         "activeTab",
-        "storage"
+        "storage",
+        "messagesTags",
+        "messagesTagsList",
+        "messagesUpdate"
     ],
     "background": {
         "scripts": [
-            "raw_parser.js",
+            "settings.js",
+            "helpers.js",
             "background.js"
         ]
     },

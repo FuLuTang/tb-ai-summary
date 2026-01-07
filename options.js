@@ -41,6 +41,9 @@ function restoreOptions() {
             maxRequestsPerSecond: 5,
             maxConcurrentRequests: 20,
             popupWidth: 400,
+            autoTagging: false,
+            autoCreateTags: false,
+            maxTagsPerEmail: 3,
             briefingUrgency: 5,
             displayLanguage: "en",
             outputLanguage: "English"
@@ -57,9 +60,28 @@ function restoreOptions() {
         document.getElementById('maxRps').value = settings.maxRequestsPerSecond !== undefined ? settings.maxRequestsPerSecond : 5;
         document.getElementById('maxConcurrent').value = settings.maxConcurrentRequests !== undefined ? settings.maxConcurrentRequests : 20;
         document.getElementById('popupWidth').value = settings.popupWidth !== undefined ? settings.popupWidth : 400;
+        document.getElementById('autoTagging').checked = settings.autoTagging === true;
+        document.getElementById('maxTagsPerEmail').value = settings.maxTagsPerEmail !== undefined ? settings.maxTagsPerEmail : 3;
         document.getElementById('briefingUrgency').value = settings.briefingUrgency !== undefined ? settings.briefingUrgency : 5;
+
+        // Update the state of dependent controls
+        updateTagSettingsState();
     });
 }
+
+function updateTagSettingsState() {
+    const isAutoTaggingEnabled = document.getElementById('autoTagging').checked;
+    const maxTagsGroup = document.getElementById('groupMaxTags');
+
+    if (isAutoTaggingEnabled) {
+        maxTagsGroup.classList.remove('disabled');
+    } else {
+        maxTagsGroup.classList.add('disabled');
+    }
+}
+
+// Listen for autoTagging toggle changes
+document.getElementById('autoTagging').addEventListener('change', updateTagSettingsState);
 
 function saveOptions() {
     const maxCache = parseInt(document.getElementById('maxCache').value);
@@ -70,6 +92,8 @@ function saveOptions() {
     const maxRps = parseInt(document.getElementById('maxRps').value);
     const maxConcurrent = parseInt(document.getElementById('maxConcurrent').value);
     const popupWidth = parseInt(document.getElementById('popupWidth').value);
+    const autoTagging = document.getElementById('autoTagging').checked;
+    const maxTagsPerEmail = parseInt(document.getElementById('maxTagsPerEmail').value);
 
     const briefingUrgency = parseInt(document.getElementById('briefingUrgency').value);
     const displayLanguage = document.getElementById('displayLanguage').value;
@@ -104,6 +128,8 @@ function saveOptions() {
         maxRequestsPerSecond: maxRps,
         maxConcurrentRequests: maxConcurrent,
         popupWidth: isNaN(popupWidth) ? 400 : popupWidth,
+        autoTagging: autoTagging,
+        maxTagsPerEmail: isNaN(maxTagsPerEmail) ? 3 : maxTagsPerEmail,
         briefingUrgency: isNaN(briefingUrgency) ? 5 : briefingUrgency,
         displayLanguage: displayLanguage,
         outputLanguage: outputLanguage
@@ -183,6 +209,10 @@ function updateUIText(lang = "en") {
         ["maxCacheDesc", "maxCacheDesc"],
         ["popupWidthLabel", "popupWidthLabel"],
         ["popupWidthDesc", "popupWidthDesc"],
+        ["autoTaggingLabel", "autoTaggingLabel"],
+        ["autoTaggingDesc", "autoTaggingDesc"],
+        ["maxTagsPerEmailLabel", "maxTagsPerEmailLabel"],
+        ["maxTagsPerEmailDesc", "maxTagsPerEmailDesc"],
         ["briefingUrgencyLabel", "briefingUrgencyLabel"],
         ["briefingUrgencyDesc", "briefingUrgencyDesc"],
         ["saveBtn", "saveBtn"],
@@ -191,7 +221,12 @@ function updateUIText(lang = "en") {
         ["logTitle", "logTitle"],
         ["tabGeneral", "tabGeneral"],
         ["tabAi", "tabAi"],
-        ["tabLog", "tabLog"]
+        ["tabLog", "tabLog"],
+        ["secLanguage", "secLanguage"],
+        ["secSystem", "secSystem"],
+        ["secTag", "secTag"],
+        ["secApi", "secApi"],
+        ["secLogic", "secLogic"]
     ];
 
     textMap.forEach(([id, key]) => {

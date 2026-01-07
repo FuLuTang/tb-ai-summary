@@ -285,29 +285,7 @@ function renderResult(container, data, lang = "en") {
     summaryP.textContent = data.summary;
     container.appendChild(summaryP);
 
-    // 4. Action Items
-    if (data.action_items && data.action_items.length > 0) {
-        const actionHeader = document.createElement('h4');
-        actionHeader.textContent = getText("actionItemsHeader", lang);
-        container.appendChild(actionHeader);
 
-        const ul = document.createElement('ul');
-        ul.className = "action-list";
-
-        data.action_items.forEach(item => {
-            const li = document.createElement('li');
-            li.className = "action-item";
-            li.textContent = item;
-
-            // Interaction: Click to toggle strikethrough
-            li.addEventListener('click', () => {
-                li.classList.toggle('done');
-            });
-
-            ul.appendChild(li);
-        });
-        container.appendChild(ul);
-    }
 }
 
 function showBatchStatus(text, type) {
