@@ -63,6 +63,16 @@ function restoreOptions() {
         document.getElementById('midModelTemperature').value = appSettings.midModelTemperature !== undefined ? appSettings.midModelTemperature : 1.0;
         document.getElementById('highModelTemperature').value = appSettings.highModelTemperature !== undefined ? appSettings.highModelTemperature : 1.0;
 
+        document.getElementById('maxRps').value = appSettings.maxRequestsPerSecond || 5;
+        document.getElementById('maxConcurrent').value = appSettings.maxConcurrentRequests || 20;
+        document.getElementById('popupWidth').value = appSettings.popupWidth || 400;
+        document.getElementById('autoTagging').checked = !!appSettings.autoTagging;
+        document.getElementById('maxTagsPerEmail').value = appSettings.maxTagsPerEmail || 3;
+        document.getElementById('briefingUrgency').value = appSettings.briefingUrgency || 5;
+
+        // Trigger change event to update UI state (enable/disable dependent fields)
+        updateTagSettingsState();
+
         document.getElementById('promptProfile').value = appSettings.promptProfile;
         document.getElementById('promptProfile').value = appSettings.promptProfile;
 
