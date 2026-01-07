@@ -34,7 +34,11 @@
     },
     "message_display_action": {
         "default_popup": "popup.html",
-        "default_title": "AI",
+        "default_title": "AI Summary",
+        "default_icon": "icon.png"
+    },
+    "browser_action": {
+        "default_title": "AI Agent",
         "default_icon": "icon.png"
     }
 }

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Agent</title>
+    <link rel="stylesheet" href="agent.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <button id="new-chat-btn" class="new-chat-btn">
+                    <span>+ 新建对话</span>
+                </button>
+            </div>
+
+            <div class="chat-history-list" id="chat-history">
+                <div class="history-item active">
+                    <span class="icon">💬</span> Current Chat
+                </div>
+                <div class="history-item">
+                    <span class="icon">💬</span> Previous Conversation...
+                </div>
+            </div>
+
+            <div class="sidebar-footer">
+                <button class="user-menu-btn">
+                    <div class="avatar user">U</div>
+                    <span>User</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="chat-viewport">
+            <!-- Mobile Sidebar Toggle -->
+            <button id="sidebar-toggle" class="sidebar-toggle-btn">
+                <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </button>
+
+            <!-- Top Navigation / Header -->
+            <div class="top-nav">
+                <div class="model-selector" id="model-selector-btn">
+                    <span>GPT-4</span>
+                    <svg class="arrow-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2">
+                        <path d="M6 9l6 6 6-6" />
+                    </svg>
+                </div>
+                <!-- Model Dropdown Menu -->
+                <div class="dropdown-menu model-menu hidden" id="model-menu">
+                    <div class="dropdown-item active">
+                        <div class="d-icon">⚡</div>
+                        <div class="d-info">
+                            <div class="d-title">GPT-4</div>
+                            <div class="d-desc">Our smartest and most capable model.</div>
+                        </div>
+                        <div class="d-check">✓</div>
+                    </div>
+                    <div class="dropdown-item">
+                        <div class="d-icon">🚀</div>
+                        <div class="d-info">
+                            <div class="d-title">GPT-3.5</div>
+                            <div class="d-desc">Great for everyday tasks.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="nav-actions">
+                    <!-- Placeholder for future actions -->
+                </div>
+            </div>
+
+            <!-- Landing View -->
+            <div id="landing-view" class="landing-container">
+                <div class="landing-content">
+                    <div class="landing-logo">
+                        <svg viewBox="0 0 24 24" width="72" height="72" fill="var(--text-primary)">
+                            <path
+                                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" />
+                        </svg>
+                    </div>
+                    <h1>我可以帮你做什么？</h1>
+
+                    <div class="landing-suggestions">
+                        <div class="suggestion-card"
+                            onclick="document.getElementById('user-input').value='总结今天的未读邮件'; document.getElementById('user-input').focus();">
+                            <div class="s-title">📧 邮件总结</div>
+                            <div class="s-text">总结今日收件箱中的未读邮件</div>
+                        </div>
+                        <div class="suggestion-card"
+                            onclick="document.getElementById('user-input').value='查找来自 Amazon 的订单'; document.getElementById('user-input').focus();">
+                            <div class="s-title">🔍 搜索邮件</div>
+                            <div class="s-text">查找特定发件人或关键词的邮件</div>
+                        </div>
+                        <div class="suggestion-card"
+                            onclick="document.getElementById('user-input').value='帮我写一封请假邮件'; document.getElementById('user-input').focus();">
+                            <div class="s-title">✍️ 邮件撰写</div>
+                            <div class="s-text">根据要求草拟一封新邮件</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Messages View -->
+            <div id="messages-view" class="messages-container hidden">
+                <!-- Messages will be injected here via JS -->
+            </div>
+
+            <!-- Input Area -->
+            <div class="input-area">
+                <div class="input-wrapper">
+                    <button class="action-btn" title="上传附件">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path
+                                d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48">
+                            </path>
+                        </svg>
+                    </button>
+                    <textarea id="user-input" placeholder="发送消息..." rows="1"></textarea>
+                    <button id="send-btn" class="send-btn" title="发送">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="status-bar" id="status-bar">AI 可能会产生错误信息，请核对重要事实。</div>
+            </div>
+        </main>
+    </div>
+
+    <!-- User Profile Dropdown (Fixed Position) -->
+    <div class="dropdown-menu user-menu hidden" id="user-menu">
+        <div class="dropdown-item">
+            <span class="m-icon">⚙️</span> Settings
+        </div>
+        <div class="dropdown-item">
+            <span class="m-icon">🗑️</span> Clear Conversations
+        </div>
+        <div class="dropdown-divider"></div>
+        <div class="dropdown-item">
+            <span class="m-icon">🚪</span> Log out
+        </div>
+    </div>
+
+    <script src="../settings.js"></script>
+    <script type="module" src="agent.js"></script>
+</body>
+
+</html>

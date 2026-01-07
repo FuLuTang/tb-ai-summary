@@ -81,6 +81,14 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
 });
 
+// 监听顶部工具栏按钮点击
+browser.browserAction.onClicked.addListener(() => {
+    browser.tabs.create({
+        url: "/agent/agent.html"
+    });
+});
+
+
 // 处理单条摘要请求
 async function handleStartSummary({ messageId, forceUpdate }) {
     if (!messageId) return;
