@@ -1,7 +1,7 @@
 {
     "manifest_version": 2,
     "name": "AI Chatting Mail Summarizer",
-    "version": "1.0",
+    "version": "1.1",
     "description": "Summarize your emails with AI, then know what should i do.",
     "icons": {
         "512": "icon.png"
