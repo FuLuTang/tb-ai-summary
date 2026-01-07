@@ -70,3 +70,52 @@ This extension consists of two main parts: **Popup (Frontend UI)** and **Backgro
     *   Concatenates summaries of these high-priority emails into a new Prompt.
     *   Asks the AI to act as an "Executive Assistant" and generate a concise daily/weekly report.
 5.  **Display**: The generated result is saved locally. When the user clicks "View Existing Briefing", a new Tab (`briefing.html`) is opened to display the Markdown-rendered briefing.
+
+---
+
+## 🧠 Agent Architecture (ReAct)
+
+Beyond basic summarization, this project includes a smart Email Agent based on the **ReAct (Reasoning and Acting)** pattern (located in the `agent/` directory).
+
+### 1. Core Design
+
+The Agent mimics the human decision-making process: **Thought -> Action -> Observation**. It solves complex mail tasks through iterative cycles:
+
+*   **AgentCore (`agent/core/AgentCore.js`)**: The "Brain" of the system. It manages conversation context, initializes system prompts, and drives the `While` loop.
+*   **LLMService (`agent/services/LLMService.js`)**: The Reasoning Layer. Sends context to the AI and parses the **Thought** (logic) and **Action** (tool to call).
+*   **ToolManager & EmailTools (`agent/tools/`)**: The Execution Layer. Contains all "skills" available to the Agent, such as searching emails, querying tags, getting thread context, etc.
+
+### 2. Execution Flow (Pseudocode)
+
+```cpp
+// ReAct Core Logic: Thought -> Action -> Observation
+while (step < max_iterations) {
+    // 1. Planning
+    plan = midModel("user_input" + "Decompose task, provide steps");
+    
+    // 2. Thought: Analyze progress
+    query = "user_input" + plan + "Is current info complete?";
+    context += midModel(query);
+    ai_needs_tool = lowModel(context);
+
+    // 3. Action: If tool call needed
+    if (ai_needs_tool) {
+        [action, params] = lowModel(context + "Which tool to call?");
+        observation = tool_manager.use(action, params);
+        
+        // 4. Observation: Feed result back and iterate
+        tool_manager.wait();
+        context += observation;
+    } 
+    else {
+        // 5. Final Answer: Task finished, output result
+        final_answer = midModel(context + "Task finished, output result");
+        return final_answer;
+    }
+}
+```
+
+### 3. UI Interaction
+
+*   **ChatInterface**: Provides a LibreChat-like interactive experience.
+*   **Thought Process**: The UI displays the AI's internal reasoning (via a "Thinking" badge), allowing users to inspect tool calls and logic for each step.

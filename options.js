@@ -46,7 +46,10 @@ function restoreOptions() {
             maxTagsPerEmail: 3,
             briefingUrgency: 5,
             displayLanguage: "en",
-            outputLanguage: "English"
+            outputLanguage: "English",
+            lowModel: "gpt-5-nano",
+            midModel: "gpt-5-mini",
+            highModel: "gpt-5.1"
         };
         document.getElementById('displayLanguage').value = settings.displayLanguage || "en";
         document.getElementById('outputLanguage').value = settings.outputLanguage || "English";
@@ -63,6 +66,9 @@ function restoreOptions() {
         document.getElementById('autoTagging').checked = settings.autoTagging === true;
         document.getElementById('maxTagsPerEmail').value = settings.maxTagsPerEmail !== undefined ? settings.maxTagsPerEmail : 3;
         document.getElementById('briefingUrgency').value = settings.briefingUrgency !== undefined ? settings.briefingUrgency : 5;
+        document.getElementById('lowModel').value = settings.lowModel || "gpt-5-nano";
+        document.getElementById('midModel').value = settings.midModel || "gpt-5-mini";
+        document.getElementById('highModel').value = settings.highModel || "gpt-5.1";
 
         // Update the state of dependent controls
         updateTagSettingsState();
@@ -98,6 +104,9 @@ function saveOptions() {
     const briefingUrgency = parseInt(document.getElementById('briefingUrgency').value);
     const displayLanguage = document.getElementById('displayLanguage').value;
     const outputLanguage = document.getElementById('outputLanguage').value;
+    const lowModel = document.getElementById('lowModel').value.trim();
+    const midModel = document.getElementById('midModel').value.trim();
+    const highModel = document.getElementById('highModel').value.trim();
 
     if (!maxCache || maxCache < 1) {
         showStatus("请输入有效的最大缓存数量", "error");
@@ -132,7 +141,10 @@ function saveOptions() {
         maxTagsPerEmail: isNaN(maxTagsPerEmail) ? 3 : maxTagsPerEmail,
         briefingUrgency: isNaN(briefingUrgency) ? 5 : briefingUrgency,
         displayLanguage: displayLanguage,
-        outputLanguage: outputLanguage
+        outputLanguage: outputLanguage,
+        lowModel: lowModel || "gpt-5-nano",
+        midModel: midModel || "gpt-5-mini",
+        highModel: highModel || "gpt-5.1"
     };
 
     browser.storage.local.set({ app_settings: settings }).then(() => {
@@ -226,6 +238,10 @@ function updateUIText(lang = "en") {
         ["secSystem", "secSystem"],
         ["secTag", "secTag"],
         ["secApi", "secApi"],
+        ["secModelSelection", "secModelSelection"],
+        ["lowModelLabel", "lowModelLabel"],
+        ["midModelLabel", "midModelLabel"],
+        ["highModelLabel", "highModelLabel"],
         ["secLogic", "secLogic"]
     ];
 

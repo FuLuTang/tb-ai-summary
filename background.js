@@ -259,7 +259,7 @@ Use ${outputLang} for output.
     }
 
     const apiUrl = appSettings.apiUrl || "https://api.openai.com/v1/chat/completions";
-    const model = appSettings.model || "gpt-4o-mini";
+    const model = appSettings.midModel || "gpt-5-mini";
     const temperature = appSettings.temperature !== undefined ? appSettings.temperature : 0.2;
 
     const response = await fetch(apiUrl, {
@@ -529,7 +529,7 @@ ${summariesText}
         if (!appSettings.apiKey) return;
 
         const apiUrl = appSettings.apiUrl || "https://api.openai.com/v1/chat/completions";
-        const model = appSettings.model || "gpt-4o-mini";
+        const model = appSettings.midModel || "gpt-5-mini";
 
         const response = await fetch(apiUrl, {
             method: "POST",

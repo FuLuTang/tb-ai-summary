@@ -13,7 +13,7 @@ export class LLMService {
         const apiUrl = this.settings.apiUrl || "https://api.openai.com/v1/chat/completions";
 
         const body = {
-            model: this.settings.model || "gpt-4o-mini",
+            model: this.settings.midModel || "gpt-5-mini",
             messages: messages,
             temperature: this.settings.temperature // Use user setting or undefined (default)
         };

@@ -1,27 +1,43 @@
-/* Base Variables - Modern Dark Theme */
+/* Base Variables - Modern Dark Theme (Exact LibreChat Tones) */
 :root {
     /* Colors inspired by LibreChat/ChatGPT Dark Mode */
     --bg-color: #343541;
     /* Main background */
     --sidebar-bg: #202123;
+    /* Sidebar darker */
     --sidebar-hover: #2A2B32;
-    --border-color: #4D4D4F;
+    --border-color: rgba(255, 255, 255, 0.1);
+    /* Subtler border */
+
     --text-primary: #ECECF1;
     --text-secondary: #C5C5D2;
-    --accent-color: #10a37f;
+    --text-muted: #8e8ea0;
+    /* Even lighter for timestamps etc */
+
+    --accent-color: #19c37d;
+    /* ChatGPT Green */
     --accent-hover: #1a7f64;
 
     --input-bg: #40414F;
-    --input-shadow: rgba(0, 0, 0, 0.1);
+    --input-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
 
-    --bubble-user: #343541;
+    --bubble-user: transparent;
+    /* LibreChat often has transparent user bubbles */
     --bubble-ai: #444654;
+    /* Distinct AI background */
 
     --dropdown-bg: #202123;
-    --dropdown-hover: #40414F;
+    --dropdown-hover: #343541;
 
+    /* Dimensions & Radius */
     --sidebar-width: 260px;
-    --header-height: 50px;
+    --header-height: 60px;
+    --radius-md: 0.375rem;
+    /* 6px */
+    --radius-lg: 0.5rem;
+    /* 8px */
+    --radius-xl: 0.75rem;
+    /* 12px */
 }
 
 body {
@@ -56,14 +72,22 @@ body {
     padding: 10px;
 }
 
-.new-chat-btn {
+.header-row {
     display: flex;
     align-items: center;
-    gap: 10px;
-    width: 100%;
-    padding: 12px;
-    border-radius: 6px;
-    border: 1px solid var(--border-color);
+    gap: 8px;
+}
+
+/* Sidebar Components */
+.new-chat-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(255, 255, 255, 0.0);
+    /* Transparent border usually */
     background-color: transparent;
     color: var(--text-primary);
     cursor: pointer;
@@ -76,26 +100,57 @@ body {
     background-color: var(--sidebar-hover);
 }
 
+.sidebar-collapse-btn {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    padding: 10px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sidebar-collapse-btn:hover {
+    background-color: var(--sidebar-hover);
+}
+
 .chat-history-list {
     flex: 1;
     overflow-y: auto;
     padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    /* Space between groups */
+}
+
+.history-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.group-title {
+    font-size: 12px;
+    color: var(--text-muted);
+    padding: 8px 12px;
+    font-weight: 500;
 }
 
 .history-item {
     padding: 10px 12px;
-    margin-bottom: 5px;
-    border-radius: 6px;
+    border-radius: var(--radius-md);
     cursor: pointer;
     font-size: 14px;
-    color: var(--text-secondary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    color: var(--text-primary);
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 12px;
     transition: background 0.2s;
+    position: relative;
+    overflow: hidden;
 }
 
 .history-item:hover {
@@ -103,28 +158,61 @@ body {
 }
 
 .history-item.active {
-    background-color: var(--sidebar-hover);
+    background-color: #343541;
+}
+
+.item-title {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.item-actions {
+    display: none;
+    align-items: center;
+    gap: 4px;
+    position: absolute;
+    right: 5px;
+    background: linear-gradient(90deg, transparent, var(--sidebar-hover) 20%);
+    padding-left: 10px;
+}
+
+.history-item:hover .item-actions {
+    display: flex;
+}
+
+.item-actions button {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 2px;
+}
+
+.item-actions button:hover {
     color: var(--text-primary);
 }
 
 .sidebar-footer {
     padding: 15px;
     border-top: 1px solid var(--border-color);
-    position: relative;
 }
 
+/* User Menu Button - Bottom Sidebar */
 .user-menu-btn {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     width: 100%;
     background: none;
     border: none;
     color: var(--text-primary);
     cursor: pointer;
-    padding: 8px;
-    border-radius: 6px;
+    padding: 12px;
+    border-radius: var(--radius-md);
     transition: background 0.2s;
+    font-weight: 500;
 }
 
 .user-menu-btn:hover {
@@ -140,7 +228,149 @@ body {
     background-color: var(--bg-color);
 }
 
-/* Top Navigation Bar */
+/* Thought Sidebar (Right Panel) */
+.thought-sidebar {
+    width: 0;
+    background-color: #000000;
+    /* Deep black/gray contrast */
+    border-left: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+    position: relative;
+    z-index: 100;
+}
+
+.thought-sidebar.open {
+    width: 350px;
+    /* Expanded Width */
+}
+
+.ts-header {
+    height: var(--header-height);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--border-color);
+    white-space: nowrap;
+}
+
+.ts-title {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--text-primary);
+    display: flex;
+    gap: 8px;
+}
+
+.ts-time {
+    color: var(--text-muted);
+}
+
+.ts-close-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+}
+
+.ts-close-btn:hover {
+    background-color: var(--sidebar-hover);
+    color: var(--text-primary);
+}
+
+.ts-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+}
+
+/* Thought Steps inside Sidebar */
+.ts-step {
+    position: relative;
+    padding-left: 20px;
+    margin-bottom: 24px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.ts-step:last-child {
+    margin-bottom: 0;
+}
+
+.ts-step::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 6px;
+    width: 8px;
+    height: 8px;
+    background-color: var(--text-muted);
+    border-radius: 50%;
+}
+
+.ts-step.active::before {
+    background-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(25, 195, 125, 0.2);
+}
+
+.ts-step-content {
+    color: var(--text-secondary);
+}
+
+.ts-step.active .ts-step-content {
+    color: var(--text-primary);
+}
+
+.ts-tool-call {
+    margin-top: 8px;
+    background-color: var(--sidebar-hover);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-family: monospace;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+/* Badge in Message Flow */
+.thought-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text-muted);
+    cursor: pointer;
+    user-select: none;
+    padding: 2px 0;
+    margin-bottom: 8px;
+    transition: color 0.2s;
+}
+
+.thought-badge:hover {
+    color: var(--text-primary);
+}
+
+.thought-badge .icon {
+    font-size: 14px;
+}
+
+.thought-badge.thinking {
+    color: var(--accent-color);
+}
+
+.thought-details-ref {
+    font-weight: 500;
+}
+
+/* Header / Nav */
 .top-nav {
     height: var(--header-height);
     display: flex;
@@ -148,70 +378,539 @@ body {
     justify-content: space-between;
     padding: 0 16px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    background-color: var(--bg-color);
+    /* Very subtle separator */
     position: relative;
-    /* Context for dropdown */
     z-index: 50;
 }
 
+.nav-left {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+/* Model Selector - Top Center */
 .model-selector {
+    border-radius: 12px;
+    font-size: 18px;
+    /* Larger title like "ChatGPT 4" */
+    font-weight: 600;
+    color: var(--text-secondary);
+    padding: 8px 16px;
     display: flex;
     align-items: center;
     gap: 8px;
     cursor: pointer;
-    padding: 6px 12px;
-    border-radius: 6px;
-    font-weight: 600;
-    transition: background 0.2s;
-    user-select: none;
+    transition: all 0.2s;
 }
 
 .model-selector:hover {
+    background-color: var(--dropdown-hover);
+    color: var(--text-primary);
+}
+
+.temp-chat-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+/* Switch Toggle */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 34px;
+    height: 20px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #565869;
+    transition: .4s;
+    border-radius: 20px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked+.slider {
+    background-color: var(--accent-color);
+}
+
+input:checked+.slider:before {
+    transform: translateX(14px);
+}
+
+
+/* Landing Page (Restored) */
+.landing-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    overflow-y: auto;
+}
+
+.landing-content {
+    text-align: center;
+    max-width: 600px;
+    /* Tighter width like real ChatGPT */
+    width: 100%;
+    margin-bottom: 100px;
+}
+
+.landing-logo {
+    margin-bottom: 40px;
+}
+
+.landing-suggestions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    width: 100%;
+}
+
+.suggestion-card {
+    background-color: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xl);
+    padding: 12px 16px;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.2s;
+}
+
+.suggestion-card:hover {
     background-color: var(--sidebar-hover);
 }
 
-.arrow-icon {
+.s-title {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 4px;
+}
+
+.s-text {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+
+/* Messages Area */
+.messages-container {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    padding: 20px 0;
+    gap: 20px;
+    /* Space between messages */
+    padding-bottom: 150px;
+}
+
+.message-row {
+    width: 100%;
+    position: relative;
+    padding: 0;
+    /* Let content handle padding */
+    border: none;
+}
+
+.message-content {
+    max-width: 768px;
+    margin: 0 auto;
+    display: flex;
+    gap: 16px;
+    padding: 0 20px;
+    position: relative;
+    align-items: flex-start;
+}
+
+/* User Message specific */
+.message-row.user .message-content {
+    flex-direction: row-reverse;
+    /* Avatar on right or just structure */
+    justify-content: flex-start;
+    /* Because of row reverse, this aligns to right */
+}
+
+.message-row.user .avatar {
+    display: none;
+    /* Hide user avatar for pure chat bubble look like screenshot */
+}
+
+.message-row.user .message-body {
+    background-color: #2F2F2F;
+    /* Lighter than bg */
+    padding: 10px 16px;
+    border-radius: 20px;
+    /* Pill shape */
+    border-top-right-radius: 4px;
+    /* Slight accent if desired, or keep round */
+    max-width: 80%;
+    /* Don't span full width */
+    margin-left: auto;
+    /* Push to right */
+}
+
+.message-row.user .message-actions {
+    display: none;
+    /* Usually user msgs don't show actions immediately or they are inside */
+}
+
+
+/* AI Message Specific */
+.message-row.ai .message-content {
+    /* Default is left aligned */
+    flex-direction: row;
+}
+
+.message-row.ai .message-body {
+    padding-right: 20px;
+    /* No bg for AI */
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* AI Actions Bar (Bottom Left) */
+.message-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 4px;
+    opacity: 1;
+    /* Always visible or hover? Screenshot shows visible */
+    color: var(--text-secondary);
+}
+
+.msg-action-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0;
+    font-size: 14px;
+}
+
+.msg-action-btn:hover {
+    color: var(--text-primary);
+}
+
+.avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    /* Circle avatars */
+    flex-shrink: 0;
+    margin-top: 4px;
+    /* Align with text top */
+}
+
+.avatar.ai {
+    background-color: transparent;
+    border: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+}
+
+.avatar.user {
+    background-color: #555;
+}
+
+
+/* Branching Controls */
+.message-branch-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    user-select: none;
+    font-weight: 600;
+}
+
+.branch-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0 4px;
+}
+
+.branch-btn:hover:not(.disabled) {
+    color: var(--text-primary);
+}
+
+.branch-btn.disabled {
+    opacity: 0.3;
+    cursor: default;
+}
+
+/* Input Area */
+.input-area {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(180deg, rgba(53, 53, 65, 0) 0%, var(--bg-color) 40%);
+    padding: 24px;
+    padding-bottom: 40px;
+}
+
+/* Input Area Refinements - PILL SHAPE */
+.input-wrapper {
+    max-width: 768px;
+    /* Standard width */
+    margin: 0 auto;
+    position: relative;
+    background-color: var(--input-bg);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 26px;
+    /* Pill shape */
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.05);
+    display: flex;
+    align-items: flex-end;
+    /* Align bottom for multiline */
+    padding: 10px 12px;
+    transition: border-color 0.1s, box-shadow 0.1s;
+}
+
+.input-wrapper:focus-within {
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.08);
+    /* Softer shadow */
+    border-color: rgba(0, 0, 0, 0.2);
+}
+
+textarea {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-size: 16px;
+    line-height: 24px;
+    resize: none;
+    outline: none;
+    max-height: 200px;
+    padding: 2px 10px;
+    /* Adjust padding inside pill */
+    font-family: inherit;
+    min-height: 24px;
+}
+
+/* Icons inside input */
+.input-actions-left {
+    display: flex;
+    align-items: center;
+    padding-bottom: 4px;
+    /* Align with single line text */
+}
+
+.attach-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    padding: 8px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.attach-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+}
+
+
+.send-stop-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-bottom: 2px;
+}
+
+.send-btn,
+.stop-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    /* Circle buttons */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 6px;
+}
+
+.send-btn {
+    background-color: transparent;
+    color: var(--text-secondary);
+}
+
+.send-btn.active {
+    background-color: var(--text-primary) !important;
+    /* White usually */
+    color: var(--bg-color) !important;
+    /* Inverted icon */
+}
+
+.send-btn:disabled {
     opacity: 0.5;
-    transition: transform 0.2s;
+    cursor: default;
 }
 
-.model-selector:active .arrow-icon {
-    transform: rotate(180deg);
+.stop-btn {
+    border: 1px solid var(--text-primary);
+    color: var(--text-primary);
+    background: transparent;
 }
 
-/* Dropdown Menus */
+.stop-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.status-bar {
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 10px;
+}
+
+/* Tool/Plugin UI */
+.plugin-call-container {
+    background: #202123;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    margin-bottom: 16px;
+    overflow: hidden;
+    font-family: 'Consolas', monospace;
+    font-size: 0.9em;
+}
+
+.plugin-header {
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.02);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.plugin-header:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.plugin-name {
+    font-weight: 600;
+    color: var(--accent-color);
+}
+
+.plugin-status {
+    color: var(--text-muted);
+    font-size: 0.8em;
+    margin-left: auto;
+}
+
+.plugin-details {
+    padding: 12px;
+    background: #1a1b1e;
+    white-space: pre-wrap;
+    word-break: break-all;
+    font-size: 0.85em;
+    color: var(--text-secondary);
+}
+
+/* Thought Process */
+.thought-row .avatar {
+    background-color: #9b59b6;
+}
+
+/* Purple for generic brain */
+.thought-container {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: var(--radius-md);
+    padding: 8px 12px;
+    margin-top: 8px;
+    font-size: 0.95em;
+}
+
+.thought-header {
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 0.9em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.thought-content {
+    display: none;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.thought-container.open .thought-content {
+    display: block;
+}
+
+/* Utilities */
+.hidden {
+    display: none !important;
+}
+
+/* Dropdowns */
 .dropdown-menu {
     position: absolute;
     background-color: var(--dropdown-bg);
     border: 1px solid var(--border-color);
-    border-radius: 6px;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
-    padding: 6px;
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    padding: 4px;
     min-width: 240px;
     z-index: 1000;
     animation: fadeIn 0.15s ease-out;
 }
 
 .model-menu {
-    top: 45px;
-    left: 10px;
+    top: 50px;
+    left: 16px;
 }
 
 .user-menu {
     bottom: 70px;
-    left: 10px;
-}
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(-5px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    left: 16px;
 }
 
 .dropdown-item {
@@ -230,313 +929,30 @@ body {
     background-color: var(--dropdown-hover);
 }
 
-.dropdown-item.active {
-    background-color: var(--dropdown-hover);
-}
-
-.d-icon,
-.m-icon {
-    width: 20px;
-    text-align: center;
-    font-size: 16px;
-}
-
-.d-info {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-}
-
-.d-title {
-    font-weight: 500;
-}
-
-.d-desc {
-    font-size: 12px;
-    color: var(--text-secondary);
-}
-
 .dropdown-divider {
     height: 1px;
     background-color: var(--border-color);
-    margin: 6px 0;
+    margin: 4px 0;
 }
 
-/* Landing Page */
-.landing-container {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-    gap: 40px;
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
-.landing-content {
-    text-align: center;
-    max-width: 720px;
-    width: 100%;
-}
-
-.landing-suggestions {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 16px;
-    width: 100%;
-}
-
-.suggestion-card {
-    background-color: var(--sidebar-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 16px;
-    cursor: pointer;
-    text-align: left;
-    transition: all 0.2s;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.suggestion-card:hover {
-    background-color: var(--sidebar-hover);
-}
-
-.s-title {
-    font-weight: 600;
-    font-size: 0.9em;
-}
-
-.s-text {
-    font-size: 0.85em;
-    color: var(--text-secondary);
-}
-
-/* Messages Area */
-.messages-container {
-    flex: 1;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    padding-bottom: 150px;
-}
-
-.message-row {
-    width: 100%;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-    padding: 24px 0;
-    position: relative;
-}
-
-.message-row:hover {
-    background-color: rgba(0, 0, 0, 0.02);
-    /* Very subtle hover effect */
-}
-
-.message-row.ai {
-    background-color: var(--bubble-ai);
-}
-
-.message-content {
-    max-width: 800px;
-    margin: 0 auto;
-    display: flex;
-    gap: 20px;
-    padding: 0 20px;
-    position: relative;
-}
-
-.avatar {
-    width: 30px;
-    height: 30px;
-    border-radius: 4px;
-    background-color: var(--accent-color);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    font-size: 14px;
-    color: white;
-}
-
-.avatar.user {
-    background-color: #555;
-}
-
-.message-body {
-    flex: 1;
-    line-height: 1.6;
-    margin-top: 2px;
-    min-width: 0;
-    /* Prevents overflow */
-}
-
-/* Message Actions (Copy/Edit) - Visible on Hover */
-.message-actions {
-    display: flex;
-    gap: 8px;
-    position: absolute;
-    right: 20px;
-    top: 0;
-    opacity: 0;
-    transition: opacity 0.2s;
-}
-
-.message-row:hover .message-actions {
-    opacity: 1;
-}
-
-.msg-action-btn {
-    background: transparent;
-    border: none;
-    color: var(--text-secondary);
-    cursor: pointer;
-    padding: 4px;
-    border-radius: 4px;
-}
-
-.msg-action-btn:hover {
-    color: var(--text-primary);
-    background-color: rgba(255, 255, 255, 0.1);
-}
-
-/* Input Area */
-.input-area {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: linear-gradient(180deg, rgba(53, 53, 65, 0) 0%, var(--bg-color) 50%);
-    padding: 20px;
-    padding-bottom: 30px;
-}
-
-.input-wrapper {
-    max-width: 800px;
-    margin: 0 auto;
-    position: relative;
-    background-color: var(--input-bg);
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    border-radius: 12px;
-    box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
-    display: flex;
-    align-items: flex-end;
-    padding: 8px 12px;
-}
-
-.input-wrapper:focus-within {
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
-    border-color: rgba(255, 255, 255, 0.2);
-}
-
-.action-btn {
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    cursor: pointer;
-    padding: 8px;
-    border-radius: 4px;
-    transition: color 0.2s;
-}
-
-.action-btn:hover {
-    color: var(--text-primary);
-    background-color: rgba(255, 255, 255, 0.1);
-}
-
-textarea {
-    flex: 1;
-    background: transparent;
-    border: none;
-    color: var(--text-primary);
-    font-size: 16px;
-    line-height: 24px;
-    resize: none;
-    outline: none;
-    max-height: 200px;
-    padding: 8px;
-    font-family: inherit;
-}
-
-.send-btn {
-    background: transparent;
-    border: none;
-    color: var(--text-secondary);
-    cursor: pointer;
-    padding: 8px;
-    border-radius: 4px;
-    transition: all 0.2s;
-}
-
-.send-btn.active {
-    background-color: var(--accent-color);
-    color: white;
-}
-
-/* Utilities */
-.hidden {
-    display: none !important;
-}
-
-/* Base style for thought-container (from previous request, kept simple) */
-.thought-container {
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 6px;
-    padding: 10px;
-    margin-top: 10px;
-    font-size: 0.9em;
-}
-
-.thought-header {
-    cursor: pointer;
-    color: var(--accent-color);
-    margin-bottom: 5px;
-}
-
-.thought-content {
-    display: none;
-}
-
-.thought-container.open .thought-content {
-    display: block;
-}
-
-.thought-step {
-    padding: 4px 0;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-/* Markdown Styles */
-.message-body pre {
-    background: black;
-    padding: 10px;
-    border-radius: 6px;
-    overflow-x: auto;
-    margin: 10px 0;
-}
-
-.message-body code {
-    font-family: 'Consolas', monospace;
-    background: rgba(255, 255, 255, 0.1);
-    padding: 2px 4px;
-    border-radius: 4px;
-}
-
-.message-body p {
-    margin-bottom: 10px;
-}
-
-.message-body p:last-child {
-    margin-bottom: 0;
-}
-
-/* Mobile Toggle */
+/* Mobile */
 .sidebar-toggle-btn {
     display: none;
     position: absolute;
-    top: 10px;
-    left: 10px;
+    top: 12px;
+    left: 12px;
     z-index: 100;
     background: transparent;
     border: none;
@@ -549,6 +965,7 @@ textarea {
         position: absolute;
         height: 100%;
         z-index: 99;
+        box-shadow: 0 0 50px black;
     }
 
     .sidebar.open {

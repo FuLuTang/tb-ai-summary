@@ -16,13 +16,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 2. Initialize Components
     const ui = new ChatInterface({
         onSend: async (text) => {
-            await agent.startSession(text);
+            await agent.sendMessage(text);
+        },
+        onClearHistory: async () => {
+            await agent.clearHistory();
         }
     });
 
     const llm = new LLMService();
     const tools = new ToolManager();
     const agent = new AgentCore(llm, tools, ui);
+
+    // Initialize/Load Session
+    await agent.startNewChat();
 
     console.log("Agent initialized.");
 });

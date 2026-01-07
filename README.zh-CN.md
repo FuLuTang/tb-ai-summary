@@ -70,3 +70,57 @@
     *   将这些高优先级邮件的摘要拼接成一个新的 Prompt。
     *   要求 AI 扮演“行政助理”，生成一份简明扼要的日报/周报。
 5.  **展示**: 生成结果保存到本地，用户点击“查看已有简报”时，打开一个新的 Tab (`briefing.html`) 展示 Markdown 渲染后的简报。
+
+---
+
+## 🧠 Agent 架构 (ReAct)
+
+除了基础的摘要功能，本项目还包含一个基于 **ReAct (Reasoning and Acting)** 模式的智能邮件 Agent（位于 `agent/` 目录）。
+
+### 1. 核心设计
+
+Agent 模拟了人类“思考 -> 行动 -> 观察”的决策过程，通过多轮循环解决复杂的邮件处理任务：
+
+*   **AgentCore (`agent/core/AgentCore.js`)**: 整个系统的“大脑”。它负责维护对话上下文，初始化系统提示词，并驱动 `While` 循环。
+*   **LLMService (`agent/services/LLMService.js`)**: 推理层。将当前上下文发送给 AI，解析出 AI 的 **Thought**（思考过程）和 **Action**（准备调用的工具）。
+*   **ToolManager & EmailTools (`agent/tools/`)**: 执行层。包含 Agent 可以使用的所有“技能”，如搜索邮件、查询标签、获取对话上下文、统计未读数等。
+
+### 2. 运行流程 (伪代码)
+
+```cpp
+// --- 初始化: HighModel 制定宏观计划 (长时记忆) ---
+plan = highModel(user_input + "制定任务拆解计划");
+
+while (step < max_iterations) {
+    // 1. 内存管理: 如果上下文过长，MidModel 执行压缩总结
+    if (context.too_long) context = midModel(context + "压缩历史信息");
+
+    // 2. 思考 (Thought): MidModel 结合 Plan 和上下文，决定下一步行动
+    thought = midModel(user_input + plan + context + "进行推理");
+
+    // 3. 行动 (Action): LowModel 极速解析工具参数 (降低延迟与成本)
+    if (thought.needs_tool) {
+        [action, params] = lowModel(thought + "提取工具指令");
+        observation = tool_manager.use(action, params);
+        
+        // 4. 观察 (Observation): 反馈结果并存入上下文
+        context += (thought + observation);
+
+        // 5. 计划修正: HighModel 定期回顾并更新 Plan (长时记忆动态调整)
+        if (step % 3 == 0) plan = highModel(plan + observation + "修正计划");
+    } 
+    else {
+        // 最终回答: 任务圆满完成
+        return midModel(context + "生成最终答案");
+    }
+    step++;
+}
+
+// --- 优雅退场: 如果步数耗尽，HighModel 根据现状做最后汇报 ---
+return highModel(context + "步数耗尽，总结目前进展与失败原因");
+```
+
+### 3. 界面交互
+
+*   **ChatInterface**: 提供类似 LibreChat 的交互体验。
+*   **思考过程展示**: 界面会展示 AI 的“心路历程”（Thinking 徽章），点击可查看每一步调用的工具和思考逻辑。

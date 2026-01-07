@@ -13,7 +13,10 @@ var appSettings = {
     temperature: 1.0,
     briefingUrgency: 5,
     displayLanguage: "en",
-    outputLanguage: "English"
+    outputLanguage: "English",
+    lowModel: "gpt-5-nano",
+    midModel: "gpt-5-mini",
+    highModel: "gpt-5.1"
 };
 
 var activeTasks = {}; // { headerMessageId: { status: 'loading' | 'success' | 'error', data: ..., error: ... } }
