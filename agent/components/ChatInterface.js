@@ -31,6 +31,56 @@ export class ChatInterface {
         // Bind click outside to close menus
         this.bindGlobalEvents();
         this.initEvents();
+        this.localize();
+    }
+
+    localize() {
+        const lang = (window.appSettings && window.appSettings.displayLanguage) || 'en';
+
+        // Update Static Elements in HTML
+        const newChatSpan = document.querySelector('#new-chat-btn span');
+        if (newChatSpan) newChatSpan.textContent = getText('agentNewChat', lang);
+
+        const sideCollapse = document.querySelector('.sidebar-collapse-btn');
+        if (sideCollapse) sideCollapse.title = lang === 'zh' ? '收起侧边栏' : 'Collapse sidebar';
+
+        const userSpan = document.querySelector('.user-menu-btn span');
+        if (userSpan) userSpan.textContent = lang === 'zh' ? '用户' : 'User';
+
+        const greeting = document.querySelector('.landing-content h1');
+        if (greeting) greeting.textContent = getText('agentGreeting', lang);
+
+        if (this.userInput) this.userInput.placeholder = getText('agentInputPlaceholder', lang);
+        if (this.statusBar) this.statusBar.textContent = getText('statusSaved', lang); // Placeholder
+
+        // Suggestions
+        const sTitles = document.querySelectorAll('.suggestion-card .s-title');
+        const sTexts = document.querySelectorAll('.suggestion-card .s-text');
+        if (sTitles.length >= 3) {
+            sTitles[0].textContent = getText('agentSuggest1Title', lang);
+            sTexts[0].textContent = getText('agentSuggest1Text', lang);
+            sTitles[1].textContent = getText('agentSuggest2Title', lang);
+            sTexts[1].textContent = getText('agentSuggest2Text', lang);
+            sTitles[2].textContent = getText('agentSuggest3Title', lang);
+            sTexts[2].textContent = getText('agentSuggest3Text', lang);
+        }
+
+        // User Menu
+        const settingsItem = document.querySelector('.user-menu .dropdown-item:nth-child(1)');
+        if (settingsItem) settingsItem.innerHTML = `<span class="m-icon">⚙️</span> ${getText('agentSettings', lang)}`;
+
+        const clearItem = document.getElementById('clear-history-btn');
+        if (clearItem) clearItem.innerHTML = `<span class="m-icon">🗑️</span> ${getText('agentClearChat', lang)}`;
+
+        const logoutItem = document.querySelector('.user-menu .dropdown-item:last-child');
+        if (logoutItem) logoutItem.innerHTML = `<span class="m-icon">🚪</span> ${getText('agentLogOut', lang)}`;
+
+        // Thought Sidebar
+        const tsLabel = document.querySelector('.ts-label');
+        if (tsLabel) tsLabel.textContent = getText('agentActivity', lang);
+
+        const tsEmpty = document.querySelector('.ts-empty');
+        if (tsEmpty) tsEmpty.textContent = lang === 'zh' ? '选择“已思考”查看详细过程' : 'Select "Thinking" to view details';
     }
 
     initEvents() {
@@ -78,7 +128,9 @@ export class ChatInterface {
         const clearHistoryBtn = document.getElementById('clear-history-btn');
         if (clearHistoryBtn) {
             clearHistoryBtn.addEventListener('click', () => {
-                if (confirm('确定要清除所有对话历史吗？此操作不可恢复。')) {
+                const lang = (window.appSettings && window.appSettings.displayLanguage) || 'en';
+                const confirmMsg = lang === 'zh' ? '确定要清除所有对话历史吗？此操作不可恢复。' : 'Are you sure you want to clear all chat history? This cannot be undone.';
+                if (confirm(confirmMsg)) {
                     if (this.onClearHistory) this.onClearHistory();
                     this.closeDropdown(this.userMenu);
                 }
@@ -352,7 +404,9 @@ export class ChatInterface {
             const badge = document.createElement('div');
             badge.className = 'thought-badge'; // Finished state by default
             const duration = meta.thoughts.length * 2; // Estimate duration or save it? Mock for now
-            badge.innerHTML = `<span class="icon" style="color:var(--text-muted)">✓</span> 已思考 <span class="t-time">${duration}s</span> <span class="icon">▼</span>`;
+            const lang = (window.appSettings && window.appSettings.displayLanguage) || 'en';
+            const thinkingFinishedText = getText("agentThoughtFinished", lang);
+            badge.innerHTML = `<span class="icon" style="color:var(--text-muted)">✓</span> ${thinkingFinishedText} <span class="t-time">${duration}s</span> <span class="icon">▼</span>`;
 
             badge.addEventListener('click', () => {
                 this.openThoughtSidebar(sessionData);
@@ -406,11 +460,11 @@ export class ChatInterface {
 
         // Sort by date groups (Simplified: Just list them for now)
         // Group logic: Today, Yesterday, Previous
-        const groups = {
-            '今天': [],
-            '昨天': [],
-            '更早': []
-        };
+        const lang = (window.appSettings && window.appSettings.displayLanguage) || 'en';
+        const groups = {};
+        groups[getText('agentToday', lang)] = [];
+        groups[getText('agentYesterday', lang)] = [];
+        groups[getText('agentEarlier', lang)] = [];
 
         sessions.forEach(session => {
             const date = new Date(session.updatedAt);
@@ -419,11 +473,11 @@ export class ChatInterface {
             yesterday.setDate(yesterday.getDate() - 1);
 
             if (date.toDateString() === today.toDateString()) {
-                groups['今天'].push(session);
+                groups[getText('agentToday', lang)].push(session);
             } else if (date.toDateString() === yesterday.toDateString()) {
-                groups['昨天'].push(session);
+                groups[getText('agentYesterday', lang)].push(session);
             } else {
-                groups['更早'].push(session);
+                groups[getText('agentEarlier', lang)].push(session);
             }
         });
 
@@ -546,7 +600,9 @@ export class ChatInterface {
         // The Badge
         const badge = document.createElement('div');
         badge.className = 'thought-badge thinking';
-        badge.innerHTML = `<span class="icon">○</span> 已思考 <span class="t-time">0s</span> <span class="icon">▼</span>`;
+        const lang = (window.appSettings && window.appSettings.displayLanguage) || 'en';
+        const thinkingText = getText("agentThoughtFinished", lang); // We use "Thinking" or "Finished Thinking" depending on state, but initially let's use the label
+        badge.innerHTML = `<span class="icon">○</span> ${thinkingText} <span class="t-time">0s</span> <span class="icon">▼</span>`;
 
         // Check if user wants to see details
         badge.addEventListener('click', () => {
@@ -621,7 +677,8 @@ export class ChatInterface {
 
                 // If sidebar open, update final state
                 if (this.currentSidebarSession === sessionData) {
-                    const step = { thought: "完成", action: null, time: Date.now(), isFinal: true };
+                    const lang = (window.appSettings && window.appSettings.displayLanguage) || 'en';
+                    const step = { thought: lang === 'zh' ? "完成" : "Finished", action: null, time: Date.now(), isFinal: true };
                     this.appendStepToSidebar(step);
                 }
             },

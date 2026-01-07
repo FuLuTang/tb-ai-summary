@@ -5,7 +5,7 @@
 ## What is this?
 
 A Thunderbird extension that allows you to summarize emails using AI.
-It can summarize a **single email**, add **tags**, **urgency score**, auto generate **mount of summaries on one click**, and generate a **smart briefing** by your existing email summaries cached in local storage.
+It can summarize a **single email**, add **tags** and **urgency scores**, **batch summarize emails with one click**, and generate a **smart briefing** based on your local email summary cache.
 
 ## 🚀 How to Install Temporarily in Thunderbird (Debug Mode)
 
@@ -83,36 +83,41 @@ The Agent mimics the human decision-making process: **Thought -> Action -> Obser
 
 *   **AgentCore (`agent/core/AgentCore.js`)**: The "Brain" of the system. It manages conversation context, initializes system prompts, and drives the `While` loop.
 *   **LLMService (`agent/services/LLMService.js`)**: The Reasoning Layer. Sends context to the AI and parses the **Thought** (logic) and **Action** (tool to call).
-*   **ToolManager & EmailTools (`agent/tools/`)**: The Execution Layer. Contains all "skills" available to the Agent, such as searching emails, querying tags, getting thread context, etc.
+*   **ToolManager & EmailTools (`agent/tools/`)**: The Execution Layer. Contains all "skills" available to the Agent, such as searching emails, querying tags, getting conversation context, counting unread emails, etc.
 
 ### 2. Execution Flow (Pseudocode)
 
 ```cpp
-// ReAct Core Logic: Thought -> Action -> Observation
-while (step < max_iterations) {
-    // 1. Planning
-    plan = midModel("user_input" + "Decompose task, provide steps");
-    
-    // 2. Thought: Analyze progress
-    query = "user_input" + plan + "Is current info complete?";
-    context += midModel(query);
-    ai_needs_tool = lowModel(context);
+// --- Initialization: HighModel formulates a macro plan (Long-term Memory) ---
+plan = highModel(user_input + "Formulate task decomposition plan");
 
-    // 3. Action: If tool call needed
-    if (ai_needs_tool) {
-        [action, params] = lowModel(context + "Which tool to call?");
+while (step < max_iterations) {
+    // 1. Memory Management: If the context is too long, MidModel performs compression/summarization
+    if (context.too_long) context = midModel(context + "Compress historical info");
+
+    // 2. Thought: MidModel combines Plan and Context to decide the next step
+    thought = midModel(user_input + plan + context + "Perform reasoning");
+
+    // 3. Action: LowModel rapidly parses tool parameters (Reducing latency and cost)
+    if (thought.needs_tool) {
+        [action, params] = lowModel(thought + "Extract tool command");
         observation = tool_manager.use(action, params);
         
-        // 4. Observation: Feed result back and iterate
-        tool_manager.wait();
-        context += observation;
+        // 4. Observation: Feed back the result and save to context
+        context += (thought + observation);
+
+        // 5. Plan Revision: HighModel periodically reviews and updates the Plan (Dynamic adjustment of Long-term Memory)
+        if (step % 3 == 0) plan = highModel(plan + observation + "Revise plan");
     } 
     else {
-        // 5. Final Answer: Task finished, output result
-        final_answer = midModel(context + "Task finished, output result");
-        return final_answer;
+        // Final Answer: Task completed successfully
+        return midModel(context + "Generate final answer");
     }
+    step++;
 }
+
+// --- Graceful Exit: If steps are exhausted, HighModel reports based on current progress ---
+return highModel(context + "Steps exhausted, summarizing progress and reasons for failure");
 ```
 
 ### 3. UI Interaction

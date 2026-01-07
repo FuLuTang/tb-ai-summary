@@ -5,7 +5,8 @@ export class LLMService {
         this.settings = window.appSettings;
     }
 
-    async call(messages) {
+    // Generic internal call method
+    async _callModel(modelName, messages, temperature = undefined) {
         if (!this.settings || !this.settings.apiKey) {
             throw new Error("请先在设置中配置 API Key");
         }
@@ -13,9 +14,9 @@ export class LLMService {
         const apiUrl = this.settings.apiUrl || "https://api.openai.com/v1/chat/completions";
 
         const body = {
-            model: this.settings.midModel || "gpt-5-mini",
+            model: modelName,
             messages: messages,
-            temperature: this.settings.temperature // Use user setting or undefined (default)
+            temperature: temperature !== undefined ? temperature : this.settings.temperature
         };
 
         console.log(`[LLMService] Calling model: ${body.model}`);
@@ -35,5 +36,24 @@ export class LLMService {
         }
 
         return await response.json();
+    }
+
+    // High Intelligence Model (Planning, Complex Reasoning) - Default: gpt-4o
+    async callHigh(messages) {
+        const model = this.settings.highModel || "gpt-4o";
+        return this._callModel(model, messages);
+    }
+
+    // Mid Intelligence Model (Context Management, Orchestration) - Default: gpt-4o-mini
+    async callMid(messages) {
+        const model = this.settings.midModel || "gpt-4o-mini";
+        return this._callModel(model, messages);
+    }
+
+    // Low Intelligence Model (Tool Parsing, Formating) - Default: gpt-4o-mini
+    async callLow(messages) {
+        const model = this.settings.lowModel || "gpt-4o-mini";
+        // Low model usually needs lower temperature for deterministic parsing
+        return this._callModel(model, messages, 0.3);
     }
 }

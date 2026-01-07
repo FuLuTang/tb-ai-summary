@@ -9,27 +9,6 @@ export class AgentCore {
         this.maxIterations = 15;
     }
 
-    initSystemPrompt() {
-        const toolDescriptions = this.tools.getToolDescriptions();
-        return `你是一个强大的雷鸟邮件助手。你可以通过思考 (Thought)、行动 (Action) 和观察 (Observation) 的方式来解决用户的问题。
-
-你可以使用的工具：${toolDescriptions}
-
-输出格式要求：
-如果你需要思考，请输出：
-Thought: [你的思考过程]
-Action: [工具名]("[参数]")
-
-当你得到 Observation 后，继续思考，直到得出结论。
-最终回答请直接输出结果。
-
-核心原则：
-1. **识别意图**：如果是简单的寒暄（如“你好”、“在吗”），请礼貌回应并简要介绍自己能做什么（如总结邮件、查找信息等），**不要调用任何工具**。只有当用户有明确的需求（如“看看邮件”、“总结一下”、“找某人”）时，才开始使用工具。
-2. **回答风格**：最终回答要精炼简洁，开门见山。
-3. **避免废话**：除非用户明确要求，否则不要在结尾询问“还有什么可以帮您的？”之类的客套话。
-`;
-    }
-
     // Initialize a new chat
     async startNewChat() {
         // Lazy creation: Don't create session yet, just reset UI
@@ -70,109 +49,198 @@ Action: [工具名]("[参数]")
         let session = this.sessionService.getCurrentSession();
         if (!session) {
             session = this.sessionService.createSession();
-            this.loadHistoryToSidebar(); // Refresh sidebar to show new chat
+            this.loadHistoryToSidebar();
         }
 
         // 2. Persist User Message
         this.sessionService.addMessage(session.id, { role: 'user', content: userText });
 
-        // 3. Prepare Context for LLM (System + History)
-        const systemPrompt = this.initSystemPrompt();
-        const contextMessages = [
-            { role: 'system', content: systemPrompt },
-            ...session.messages.map(m => ({ role: m.role, content: m.content })) // Only take role/content
-        ];
+        // 3. Prepare Context
+        const toolDescriptions = this.tools.getToolDescriptions();
+        const outputLang = appSettings.outputLanguage || "Simplified Chinese";
+        const baseSystemPrompt = `You are an intelligent Thunderbird Email Agent.
+Available Tools:
+${toolDescriptions}
+Current Date: ${new Date().toLocaleString()}
 
-        // 4. Start ReAct Loop
-        // Create UI Session for Thoughts
+Your goal is to assist the user with email tasks. Please respond in ${outputLang}.
+`;
+
+        const contextMessages = session.messages.map(m => ({ role: m.role, content: m.content }));
+
+        // UI Initialization
         const agentUiSession = this.ui.createAgentSession();
         const timerId = setInterval(() => agentUiSession.updateTimer(), 1000);
-        this.ui.updateStatus("正在启动思考...");
+        this.ui.updateStatus("正在制定计划 (HighModel)...");
 
+        let currentPlan = "";
         let finalAnswer = "";
-        let thoughtLog = []; // To store in metadata
+        let thoughtLog = [];
+        let executionContext = [...contextMessages]; // Working memory for the loop
 
         try {
+            // --- Phase 1: Planning (High Model) ---
+            const planPrompt = [
+                { role: 'system', content: baseSystemPrompt + "\nYour goal is to satisfy the user request." },
+                ...contextMessages,
+                { role: 'user', content: `Based on the conversation, please create a concise text-based plan (3-5 steps) to solve the user's latest request. If the request is simple (like "hi"), just say "No complex plan needed".` }
+            ];
+
+            const planRes = await this.llm.callHigh(planPrompt);
+            currentPlan = planRes.choices[0].message.content;
+
+            const lang = appSettings.displayLanguage || "en";
+            agentUiSession.addStep(getText("agentPlan", lang), currentPlan);
+            thoughtLog.push({ type: 'plan', content: currentPlan });
+
+            // --- Phase 2: ReAct Loop (Mid & Low Models) ---
             let iterations = 0;
-            // The ephemeral loop history starts with Full Context
-            let currentLoopMessages = [...contextMessages];
 
             while (iterations < this.maxIterations) {
                 iterations++;
-                this.ui.updateStatus(`正在进行第 ${iterations} 轮分析...`);
 
-                const response = await this.llm.call(currentLoopMessages);
-                const content = response.choices[0].message.content;
-
-                // Parse Response
-                const actionMatch = content.match(/Action:\s*(\w+)\((?:"([^"]*)")?\)/i);
-                const hasAction = !!actionMatch;
-
-                let thought = content;
-                if (hasAction) {
-                    thought = content.split(/Action:/i)[0];
-                } else if (content.includes("Final Answer:")) {
-                    thought = content.split(/Final Answer:/i)[0];
-                }
-                thought = thought.replace(/Thought:/i, "").trim();
-
-                // UI Update
-                if (thought || hasAction) {
-                    agentUiSession.addStep(thought, hasAction ? actionMatch[1] : "");
-                    thoughtLog.push({ step: iterations, thought, action: hasAction ? actionMatch[1] : null });
+                // --- Memory Management (README Step 1) ---
+                const contextLength = executionContext.reduce((acc, m) => acc + m.content.length, 0);
+                if (contextLength > 12000) {
+                    this.ui.updateStatus(`${getText("agentMemoryCompressed", lang)} (${contextLength})...`);
+                    const compressPrompt = [
+                        { role: 'system', content: "你是一个记忆管理助手。请将以下对话历史压缩成一段简练的摘要，保留所有关键事实、已获取的邮件信息和目前的进展，以便 Agent 继续工作。" },
+                        { role: 'user', content: JSON.stringify(executionContext) }
+                    ];
+                    const compressRes = await this.llm.callMid(compressPrompt);
+                    executionContext = [
+                        { role: 'system', content: `之前对话的压缩记忆：\n${compressRes.choices[0].message.content}` }
+                    ];
+                    agentUiSession.addStep(getText("agentMemoryCompressed", lang), "Long context summarized to save tokens.");
                 }
 
-                if (hasAction) {
-                    const toolName = actionMatch[1];
-                    const toolParam = actionMatch[2] || "";
+                this.ui.updateStatus(`${getText("agentThinking", lang)} (${iterations})...`);
 
-                    const observation = await this.tools.execute(toolName, toolParam);
-                    const observationStr = `Observation: ${JSON.stringify(observation)}`;
+                // 2.1 Thought (Mid Model)
+                // MidModel sees: System + History + Plan + Current Observation Loop
+                const thoughtPrompt = [
+                    { role: 'system', content: baseSystemPrompt },
+                    ...executionContext,
+                    { role: 'system', content: `Current Plan:\n${currentPlan}\n\nTask: Analyze the current situation. Do we need to use a tool to get more information, or can we answer the user now?\nOutput Format:\nThought: [Your reasoning]\nDecision: [CALL_TOOL or ANSWER]` }
+                ];
 
-                    // Add to loop history
-                    currentLoopMessages.push({ role: 'assistant', content: content });
-                    currentLoopMessages.push({ role: 'user', content: observationStr });
+                const midRes = await this.llm.callMid(thoughtPrompt);
+                const midContent = midRes.choices[0].message.content;
 
-                    thoughtLog.push({ step: iterations, observation: observation }); // Log observation meta
-                } else {
-                    // Final Answer Reached
-                    if (content.includes("Final Answer:")) {
-                        finalAnswer = content.split("Final Answer:")[1].trim();
+                // Parse Thought
+                let thought = midContent;
+                let decision = "ANSWER";
+                if (midContent.includes("Thought:")) {
+                    thought = midContent.split("Thought:")[1].split("Decision:")[0].trim();
+                }
+                if (midContent.includes("Decision:")) {
+                    decision = midContent.split("Decision:")[1].trim().toUpperCase();
+                }
+
+                agentUiSession.addStep(getText("agentThought", lang), thought);
+                thoughtLog.push({ type: 'thought', content: thought, step: iterations });
+
+                // Add thought to context for continuity
+                executionContext.push({ role: 'assistant', content: midContent });
+
+                // 2.2 Action or Answer?
+                if (decision.includes("CALL_TOOL") || midContent.includes("CALL_TOOL")) {
+                    // --- Action Extraction (Low Model) ---
+                    this.ui.updateStatus(`Round ${iterations}: Tool Parsing (LowModel)...`);
+
+                    const actionPrompt = [
+                        { role: 'system', content: `You are a strict JSON parser. Available tools:\n${toolDescriptions}` },
+                        { role: 'user', content: `Based on this thought: "${thought}", what tool should be called?\nOutput strictly in format: Action: ToolName("Param")` }
+                    ];
+
+                    const lowRes = await this.llm.callLow(actionPrompt);
+                    const lowContent = lowRes.choices[0].message.content;
+
+                    const actionMatch = lowContent.match(/Action:\s*(\w+)\((?:["']([^"']*)["'])?\)/i);
+
+                    if (actionMatch) {
+                        const toolName = actionMatch[1];
+                        const toolParam = actionMatch[2] || "";
+
+                        agentUiSession.addStep(getText("agentAction", lang), `${toolName}("${toolParam}")`);
+                        thoughtLog.push({ type: 'action', tool: toolName, param: toolParam });
+
+                        // Execute
+                        this.ui.updateStatus(`Executing ${toolName}...`);
+                        const observation = await this.tools.execute(toolName, toolParam);
+                        const observationStr = `Observation: ${JSON.stringify(observation)}`;
+
+                        // Feed back to context
+                        executionContext.push({ role: 'user', content: observationStr });
+                        thoughtLog.push({ type: 'observation', content: observation });
+
+                        // --- Plan Review (High Model) - Every 3 steps ---
+                        if (iterations % 3 === 0) {
+                            this.ui.updateStatus(`Reviewing Plan (HighModel)...`);
+                            const reviewPrompt = [
+                                ...executionContext,
+                                { role: 'user', content: `Current Plan: ${currentPlan}\n\nBased on recent observations, is this plan still valid? If needed, provide a revised plan. If valid, just say "Plan looks good".` }
+                            ];
+                            const reviewRes = await this.llm.callHigh(reviewPrompt);
+                            const reviewContent = reviewRes.choices[0].message.content;
+                            if (!reviewContent.toLowerCase().includes("looks good")) {
+                                currentPlan = reviewContent;
+                                agentUiSession.addStep(`🔄 Plan Updated`, currentPlan);
+                            }
+                        }
+
                     } else {
-                        finalAnswer = content.replace(/Thought:/i, "").trim();
+                        // Low model failed to parse
+                        const errorMsg = "Observation: Failed to parse tool action from LowModel.";
+                        executionContext.push({ role: 'user', content: errorMsg });
+                        agentUiSession.addStep(getText("agentError", lang), "LowModel parse failed");
                     }
+
+                } else {
+                    // --- Final Answer Generation (Mid Model) ---
+                    this.ui.updateStatus(`Generating Answer...`);
+                    // We let MidModel generate the final conversational response based on the accumulated context
+                    const finalPrompt = [
+                        ...executionContext,
+                        { role: 'user', content: "Please provide the final answer to the user request." }
+                    ];
+
+                    const finalRes = await this.llm.callMid(finalPrompt);
+                    finalAnswer = finalRes.choices[0].message.content;
                     break;
                 }
             }
 
             if (iterations >= this.maxIterations) {
-                finalAnswer = "抱歉，任务过于复杂（已达 15 轮思考上限），已停止。";
-                agentUiSession.addStep("Error: Max iterations reached.", null);
+                this.ui.updateStatus(`Finalizing progress after exhaustion...`);
+                const exitPrompt = [
+                    ...executionContext,
+                    { role: 'user', content: "你目前已经耗尽了所有思考步数（15步）。请基于目前的进展，总结你已经完成了哪些部分，哪些部分失败了，并给出目前能提供的最好结论。使用中文。" }
+                ];
+                const finalRes = await this.llm.callHigh(exitPrompt);
+                finalAnswer = "【自动总结：思考步数已耗尽】\n" + finalRes.choices[0].message.content;
             }
 
-            // Cleanup UI
+            // Cleanup & Save
             clearInterval(timerId);
             agentUiSession.finish();
-            agentUiSession.removeIfEmpty();
-            this.ui.updateStatus("分析完成");
+            this.ui.updateStatus("完成");
 
-            // 5. Persist Assistant Answer
             const metaData = { thoughts: thoughtLog };
             this.sessionService.addMessage(session.id, {
                 role: 'assistant',
                 content: finalAnswer,
-                meta: metaData // Save thoughts for debugging or re-rendering
+                meta: metaData
             });
 
-            // 6. Display Final Answer
             this.ui.appendMessage('ai', finalAnswer, metaData);
 
         } catch (err) {
             console.error(err);
             clearInterval(timerId);
             agentUiSession.finish();
-            this.ui.appendMessage('system', `错误: ${err.message}`);
-            this.ui.updateStatus("发生错误");
+            this.ui.appendMessage('system', `Error: ${err.message}`);
+            this.ui.updateStatus("Error Occurred");
         }
     }
 }

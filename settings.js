@@ -31,7 +31,7 @@ async function loadSettings() {
         } else {
             // 尝试兼容旧的存储方式 (以防万一)
             const legacyResult = await browser.storage.local.get([
-                "apiKey", "apiUrl", "model", "temperature",
+                "apiKey", "apiUrl", "temperature",
                 "maxCacheEntries", "maxRequestsPerSecond", "maxConcurrentRequests",
                 "popupWidth", "autoTagging", "maxTagsPerEmail",
                 "briefingUrgency", "displayLanguage", "outputLanguage"

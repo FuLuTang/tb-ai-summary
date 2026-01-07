@@ -36,7 +36,6 @@ function restoreOptions() {
             maxCacheEntries: 500,
             apiKey: "",
             apiUrl: "https://api.openai.com/v1/chat/completions",
-            model: "gpt-4o-mini",
             temperature: 1.0,
             maxRequestsPerSecond: 5,
             maxConcurrentRequests: 20,
@@ -58,7 +57,7 @@ function restoreOptions() {
         document.getElementById('maxCache').value = settings.maxCacheEntries;
         document.getElementById('apiKey').value = settings.apiKey || "";
         document.getElementById('apiUrl').value = settings.apiUrl || "https://api.openai.com/v1/chat/completions";
-        document.getElementById('model').value = settings.model || "gpt-4o-mini";
+
         document.getElementById('temperature').value = settings.temperature !== undefined ? settings.temperature : 1.0;
         document.getElementById('maxRps').value = settings.maxRequestsPerSecond !== undefined ? settings.maxRequestsPerSecond : 5;
         document.getElementById('maxConcurrent').value = settings.maxConcurrentRequests !== undefined ? settings.maxConcurrentRequests : 20;
@@ -93,7 +92,7 @@ function saveOptions() {
     const maxCache = parseInt(document.getElementById('maxCache').value);
     const apiKey = document.getElementById('apiKey').value.trim();
     const apiUrl = document.getElementById('apiUrl').value.trim();
-    const model = document.getElementById('model').value.trim();
+
     const temperature = parseFloat(document.getElementById('temperature').value);
     const maxRps = parseInt(document.getElementById('maxRps').value);
     const maxConcurrent = parseInt(document.getElementById('maxConcurrent').value);
@@ -132,7 +131,6 @@ function saveOptions() {
         maxCacheEntries: maxCache,
         apiKey: apiKey,
         apiUrl: apiUrl || "https://api.openai.com/v1/chat/completions",
-        model: model || "gpt-4o-mini",
         temperature: isNaN(temperature) ? 1.0 : temperature,
         maxRequestsPerSecond: maxRps,
         maxConcurrentRequests: maxConcurrent,
@@ -210,7 +208,7 @@ function updateUIText(lang = "en") {
         ["apiUrlLabel", "apiUrlLabel"],
         ["displayLanguageLabel", "displayLanguageLabel"],
         ["outputLanguageLabel", "outputLanguageLabel"],
-        ["modelLabel", "modelLabel"],
+
         ["temperatureLabel", "temperatureLabel"],
         ["temperatureDesc", "temperatureDesc"],
         ["maxRpsLabel", "maxRpsLabel"],
