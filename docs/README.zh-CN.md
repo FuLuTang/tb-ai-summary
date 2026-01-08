@@ -1,6 +1,6 @@
 # Thunderbird AI Summary Extension
 
-[English](README.md) | [中文](README.zh-CN.md) | [开发指南](MODIFICATION_GUIDE.md)
+[English](../README.md) | [中文](README.zh-CN.md) | [开发指南](MODIFICATION_GUIDE.md)
 
 ## 这是什么？
 
@@ -38,7 +38,7 @@
 
 *   **Background (`background.js`)**:
     *   **职责**: 处理核心逻辑，包括调用 Thunderbird API 读取邮件、调用 OpenAI API 生成总结、以及管理缓存。
-    *   **持久化**: 使用 `browser.storage.local` 存储 API 设置和邮件总结缓存，避免重复消耗 Token。
+    *   **持久化**: 使用 `browser.storage.local` 存储 API 设置 and 邮件总结缓存，避免重复消耗 Token。
 
 ### 2. 功能逻辑拆解
 
