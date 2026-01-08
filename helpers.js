@@ -109,9 +109,18 @@ async function getTagsMap() {
         // API available in TB 121+
         if (messenger && messenger.messages && messenger.messages.tags && typeof messenger.messages.tags.list === 'function') {
             const tags = await messenger.messages.tags.list();
+            console.log("[AutoTag] tags.list raw:", JSON.stringify(tags));
             tags.forEach(t => {
-                // Store Name -> Key mapping
-                nameToKey[t.tag] = t.key;
+                // macOS Workaround: Check for control characters in the key (e.g. \u001f) which indicate corruption
+                // If the key is corrupted, 'messages.update' will fail or do nothing.
+                // In this case, we fallback to using the Tag Name itself. This may only apply it as a keyword (no color),
+                // but it ensures the metadata is at least present.
+                if (t.key && /[\x00-\x1f]/.test(t.key)) {
+                    console.warn(`[AutoTag] Key for '${t.tag}' appears corrupted (contains control chars). Skipping this tag.`);
+                    // Do NOT map this tag. Skipping it ensures we don't send garbage to the API.
+                } else {
+                    nameToKey[t.tag] = t.key;
+                }
             });
         } else {
             // Fallback

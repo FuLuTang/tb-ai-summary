@@ -289,7 +289,15 @@ Use ${outputLang} for output.
     }
 
     const data = await response.json();
+    // Debug: Log full response structure
+    console.log("[DEBUG] AI Full Response:", JSON.stringify(data).substring(0, 500));
+
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+        throw new Error("AI Response Invalid: No choices/message found.");
+    }
+
     const content = data.choices[0].message.content;
+    console.log("[DEBUG] AI Raw Content:", content);
 
     // 3. Try to parse JSON
     try {
@@ -297,9 +305,11 @@ Use ${outputLang} for output.
         cleanJson = cleanJson.replace(/[\u0000-\u0009\u000B-\u001F\u007F-\u009F]/g, "");
 
         const parsedData = JSON.parse(cleanJson);
+        console.log("[DEBUG] Parsed JSON:", parsedData);
 
         // 4. Auto Tagging Implementation
         if (appSettings.autoTagging && parsedData.tags && parsedData.tags.length > 0 && messageId) {
+            console.log("[DEBUG] Entering AutoTag...", parsedData.tags);
             try {
                 const maxTags = appSettings.maxTagsPerEmail || 3;
                 let aiTagNames = parsedData.tags;
@@ -318,21 +328,33 @@ Use ${outputLang} for output.
                 });
 
                 if (invalidNames.length > 0) {
-                    console.warn(`[AutoTag] AI suggested tags not found in system: ${invalidNames.join(", ")}`);
+                    console.warn(`[AutoTag] Invalid tag names: ${invalidNames.join(", ")}`);
                 }
 
                 // Slice to max count
                 finalKeys = finalKeys.slice(0, maxTags);
 
                 if (finalKeys.length > 0) {
-                    await messenger.messages.update(messageId, {
+                    console.log("[DEBUG] Applying tags:", finalKeys);
+                    // IMPORTANT: Do NOT await this call. In some Thunderbird environments, 
+                    // attempting to await messages.update() inside this context can cause a hang 
+                    // if the background script context is in a specific state. 
+                    // Fire-and-forget ensures the UI updates immediately.
+                    browser.messages.update(messageId, {
                         tags: finalKeys
+                    }).then(() => {
+                        console.log(`[AutoTag] Tags applied successfully using keys:`, finalKeys);
+                    }).catch(err => {
+                        console.error(`[AutoTag] Async update failed for keys:`, finalKeys, err);
                     });
-                    console.log(`[AutoTag] Applied keys: ${finalKeys} (from names: ${aiTagNames})`);
+                } else {
+                    console.log("[DEBUG] No valid tags to apply.");
                 }
             } catch (tagErr) {
-                console.error(`[AutoTag] Failed to apply tags: ${tagErr.message}`);
+                console.error(`[AutoTag] Failed to apply tags:`, tagErr);
             }
+        } else {
+            console.log("[DEBUG] AutoTag skip (disabled or empty).");
         }
 
         return parsedData;
