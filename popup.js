@@ -71,11 +71,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     browser.runtime.onMessage.addListener(async (message) => {
         if (message.type === "SUMMARY_UPDATE") {
             const { headerMessageId, status, data, error } = message.payload;
+            console.log("[Popup] Received SUMMARY_UPDATE:", message.payload);
+            console.log(`[Popup] Matching against: HeaderID=${currentHeaderMessageId}, MsgID=${currentMessageId}`);
+
             // 如果当前显示的正是这封邮件，更新 UI
-            if (currentHeaderMessageId === headerMessageId || currentMessageId === headerMessageId) {
+            if (currentHeaderMessageId === headerMessageId || currentMessageId === headerMessageId || String(currentMessageId) === String(headerMessageId)) {
+                console.log("[Popup] Update Matched! Updating UI...");
                 const settings = await browser.storage.local.get("app_settings");
                 const lang = (settings.app_settings && settings.app_settings.displayLanguage) ? settings.app_settings.displayLanguage : "en";
                 updateUI({ status, data, error }, lang);
+            } else {
+                console.warn("[Popup] Update IGNORED (ID mismatch)");
             }
         } else if (message.type === "BATCH_START") {
             showBatchStatus("正在准备批量总结...", "loading");
