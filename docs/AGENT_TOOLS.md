@@ -1,5 +1,9 @@
 # AI Agent Prompts & Tools Configuration Guide
 
+[English](AGENT_TOOLS.md) | [中文](AGENT_TOOLS.zh-CN.md) | [Back to Home](../README.md)
+
+---
+
 This document explains how to view, modify, and extend the prompt configurations and tool capabilities of this Thunderbird AI Assistant.
 
 ---

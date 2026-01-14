@@ -1,6 +1,6 @@
 # Thunderbird AI Summary Extension
 
-[English](../README.md) | [中文](README.zh-CN.md) | [开发指南](MODIFICATION_GUIDE.md)
+[English](../README.md) | [中文](README.zh-CN.md) | [开发指南](MODIFICATION_GUIDE.md) | [Agent 工具说明](AGENT_TOOLS.zh-CN.md)
 
 ## 这是什么？
 

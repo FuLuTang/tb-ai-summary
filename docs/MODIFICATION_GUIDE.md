@@ -1,5 +1,9 @@
 # Modification & Development Guide
 
+[Dev Guide (EN)](MODIFICATION_GUIDE.md) | [Back to Home](../README.md)
+
+---
+
 This guide is designed to help developers (and AI assistants) quickly understand the project structure and locate the code responsible for specific features.
 
 ## 📂 Project Structure

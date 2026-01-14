@@ -1,5 +1,9 @@
 # AI Agent 提示词与工具配置指南
 
+[English](AGENT_TOOLS.md) | [中文](AGENT_TOOLS.zh-CN.md) | [返回主页](README.zh-CN.md)
+
+---
+
 本文件旨在说明如何查看、修改以及扩展本雷鸟 AI 助手插件的提示词配置与工具能力。
 
 ---
@@ -38,36 +42,22 @@ AI 看到并决定调用哪个工具的“说明书”存放在：
 
 ---
 
-## 三、 工具技术规格明细
+## 三、 Agent当前工具能力列表
 
-以下是目前支持的所有工具的技术参数与返回结构：
+以下是目前Agent可调用的工具能力列表：
 
-### 1. 邮件基础操作
-| 工具名 | 参数类型 | 说明 | 返回结构 (示例) |
+| 工具名 | 传入参数 | 说明 | 返回结构 (示例) |
 | :--- | :--- | :--- | :--- |
 | **`search_emails`** | `string` | 按主题或作者搜索关键词 | `[{id, subject, author, date}]` |
 | **`list_recent_emails`** | `number` | 获取最近 X 封邮件 | `[{id, subject, author, date}]` |
 | **`get_email_details`** | `number` | 获取邮件正文预览(500字) | `{subject, from, date, preview}` |
-
-### 2. 增强上下文与标签
-| 工具名 | 参数类型 | 说明 | 返回结构 (示例) |
-| :--- | :--- | :--- | :--- |
-| **`search_by_tag`** | `string` | 按雷鸟标签名搜索 | `[{id, subject, author, date, tags}]` |
+| **`search_by_tag`** | `string` | 按标签名搜索 | `[{id, subject, author, date, tags}]` |
 | **`get_thread_context`** | `number` | 获取同主题往来邮件列表 | `[{id, subject, author, date, is_current}]` |
-| **`list_all_tags`** | `void` | 罗列雷鸟中所有已定义的标签 | `[{key, tag, color}]` |
-| **`count_unread_messages`** | `void` | 统计收件箱未读数 | `{unread_count}` |
-
-### 3. AI 缓存与任务
-| 工具名 | 参数类型 | 说明 | 返回结构 (示例) |
-| :--- | :--- | :--- | :--- |
-| **`list_cached_summaries`** | `number` | 查看最近已生成的 AI 总结 | `[{id, subject, author, generated_at, keywords}]` |
-| **`get_existing_briefing`** | `void` | 读取今日已生成的简报 | `{content, generated_at}` |
+| **`list_all_tags`** | `void` | 罗列已定义的标签 | `[{key, tag, color}]` |
+| **`list_cached_summaries`** | `number` | 查看最近已生成的 AI 总结 | `[{id, subject, author, generated_at, keywords, tags}]` |
+| **`get_existing_briefing`** | `void` | 读取已缓存的简报 | `{content, generated_at}` |
 | **`trigger_briefing`** | `void` | 强制在后台重新生成一份简报 | `"任务已启动..."` |
 | **`trigger_batch_summary`** | `number` | 强制对最近 X 封邮件批量总结 | `"任务已启动..."` |
-
-### 4. 系统辅助
-| 工具名 | 参数类型 | 说明 | 返回结构 (示例) |
-| :--- | :--- | :--- | :--- |
 | **`get_time`** | `void` | 获取当前系统时间与时区 | `{current_time, weekday, timezone}` |
 | **`get_user_identities`** | `void` | 获取当前配置的所有邮箱账户 | `[{name, email, accountName}]` |
 
