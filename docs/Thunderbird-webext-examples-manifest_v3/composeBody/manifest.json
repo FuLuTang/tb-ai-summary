@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "version": "1.0",
+  "author": "Thunderbird Team",
+  "name": "Compose Body Example",
+  "description": "A very basic example of message body manipulation using the compose API",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "composebody@mv3.sample.extensions.thunderbird.net",
+      "strict_min_version": "128.0"
+    }
+  },
+  "permissions": [
+    "compose"
+  ],
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "compose_action": {
+    "default_title": "Alter message body"
+  }
+}

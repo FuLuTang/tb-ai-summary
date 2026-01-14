@@ -44,7 +44,7 @@ const DEFAULT_PROMPTS = {
     summary: "You are a smart email assistant. Please analyze the email provided by the user and output a JSON object with the following schema:\n{\n    \"summary\": \"string (Summarize the content in ${outputLang}, < 100 words)\",\n    \"keywords\": [\"string (Short keywords, 2-4 words in ${outputLang}, e.g. [Invoice], [Meeting])\"],\n    \"urgency_score\": number (1-10),\n    \"urgency_reason\": \"string (解释打分原因（非复述内容），一句话，最多1次逗号1次句号,简述即可。Given in ${outputLang}\"\n}\n\nUrgency Score Rules (1-10):\n- 10（危急）：需要立即采取行动。存在财务损失风险，或直接由CEO/老师下达的命令，或者对我的私人对话。\n- 8-9（高）：需要在48小时内采取行动。重要的漏洞，老师要求，或临近截止日期的作业&提醒。(不包括无用推广)\n- 5-7（中）：正常工作任务。在本周内处理。标准请求、代码审查或会议邀请。\n- 3-4（低）：可能有用的信息，但无需立即采取措施。每周报告、课程提醒，常见新登录提醒\n- 1-2（无）：仅供参考，新闻简报、广告或垃圾邮件,推广消息，不重要的服务升级,验证码推送\n\nContext Boosters:\n- If the subject contains \"Urgent\", \"Emergency\", \"ASAP\", or \"Important\", boost the score by +2.\n- If the author is a known VIP or manager (infer from context), boost the score by +2.\n- 若发件人是noreply, 分数 -1.\n- 若为验证码，无重要性\n\nConstraint:\n- Output ONLY valid JSON.\n- Do not include markdown ' \`\`\`json ' fences.\n- Summary, keywords, action_items, and urgency_reason MUST be in ${outputLang}."
 };
 
-var activeTasks = {}; // { headerMessageId: { status: 'loading' | 'success' | 'error', data: ..., error: ... } }
+// var activeTasks = {}; // REMOVED for MV3 Migration - Use storage instead
 
 // 加载设置
 async function loadSettings() {

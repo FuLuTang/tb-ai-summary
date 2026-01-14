@@ -22,37 +22,71 @@ document.addEventListener('DOMContentLoaded', async () => {
     const summarizeBtn = document.getElementById('summarizeBtn');
 
     // 确保运行在支持 messageDisplay API 的环境（Thunderbird 115+）
-    if (!browser.messageDisplay || typeof browser.messageDisplay.getDisplayedMessage !== 'function') {
+    let message = null;
+
+
+    // Strategy 1: Local API
+    if (browser.messageDisplay && typeof browser.messageDisplay.getDisplayedMessages === 'function') {
+        try {
+            let tabs = await browser.tabs.query({ active: true, currentWindow: true });
+            if (tabs.length > 0) {
+                const messages = await browser.messageDisplay.getDisplayedMessages(tabs[0].id);
+                if (messages && messages.length > 0) {
+                    message = messages[0];
+                    console.log(`[Popup] Local Success: Found ${messages.length} msgs`);
+                } else {
+                    console.log(`[Popup] Local API: No messages in tab ${tabs[0].id}`);
+                }
+            } else {
+                console.log("[Popup] Local API: No active tab found");
+            }
+        } catch (e) {
+            console.warn("[Popup] Local getDisplayedMessages failed:", e);
+        }
+    } else {
+        console.log("[Popup] Local API: browser.messageDisplay not available");
+    }
+
+    // Strategy 2: Background Fallback (If local API missing or returned null)
+    if (!message) {
+        console.log("[Popup] Local API failed/missing, trying background fallback...");
+        try {
+            message = await browser.runtime.sendMessage({ type: "GET_CURRENT_DISPLAYED_MESSAGE" });
+            if (message) {
+                console.log("[Popup] Background Success");
+            } else {
+                console.log("[Popup] Background returned null");
+            }
+        } catch (e) {
+            console.warn("[Popup] Background fallback failed:", e);
+        }
+    }
+
+    // Final Check
+    if (!message) {
         if (resultDiv) {
             resultDiv.textContent = getText("popupNoMail", lang);
         }
+
+        // Only disable "Summarize" for specific email, but maybe keep batch?
+        // Actually if we can't context, assume no mail selected.
         if (summarizeBtn) {
             summarizeBtn.disabled = true;
-            summarizeBtn.textContent = "不可用";
+            // summarizeBtn.textContent = "不可用"; // Keep "Summarize" text but disabled, "不可用" implies broken extension
         }
-        const disableIds = ['batchProcessBtn', 'batchSummarizeBtn'];
-        disableIds.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.disabled = true;
-        });
-        return;
-    }
+        // Don't disable batch buttons strictly, they might work if they fetch folder?
+        // But usually batch depends on folder context from mailTab.
+        // Let's leave them enabled or disabled based on user preference, but logic above disabled them.
+        // The user complained buttons are unclickable. Let's ONLY disable summarizeBtn if no message.
+        // Batch buttons logic handles itself (it explicitly gets current tab).
+    } else {
+        currentHeaderMessageId = message.headerMessageId;
+        currentMessageId = message.id;
+        currentAuthor = message.author || "Unknown";
+        currentSubject = message.subject || "No Subject";
 
-    // 1. 获取当前邮件信息
-    try {
-        let tabs = await browser.tabs.query({ active: true, currentWindow: true });
-        let message = await browser.messageDisplay.getDisplayedMessage(tabs[0].id);
-
-        if (!message) {
-            document.getElementById('result').textContent = getText("popupNoMail", lang);
-            // Don't return here, allow batch button to work
-        } else {
-            currentHeaderMessageId = message.headerMessageId;
-            currentMessageId = message.id;
-            currentAuthor = message.author || "Unknown";
-            currentSubject = message.subject || "No Subject";
-
-            // 2. 向 Background 询问当前状态
+        // 2. 向 Background 询问当前状态
+        try {
             const status = await browser.runtime.sendMessage({
                 type: "GET_STATUS",
                 payload: { headerMessageId: currentHeaderMessageId, messageId: currentMessageId }
@@ -61,10 +95,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (status) {
                 updateUI(status, lang);
             }
+        } catch (e) {
+            console.error("GET_STATUS failed:", e);
         }
-
-    } catch (e) {
-        console.error("Init failed:", e);
     }
 
     // 监听来自 background 的消息

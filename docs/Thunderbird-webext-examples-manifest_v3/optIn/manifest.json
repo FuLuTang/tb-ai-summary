@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "version": "1.0",
+  "author": "Thunderbird Team",
+  "name": "OptIn Screen Example",
+  "description": "Example add-on asking the user for extended consent.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "optIn@mv3.sample.extensions.thunderbird.net",
+      "strict_min_version": "128.0"
+    }
+  },
+  "permissions": [
+    "storage"
+  ],
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "icons": {
+    "64": "images/internet.png",
+    "32": "images/internet-32px.png",
+    "16": "images/internet-16px.png"
+  }
+}

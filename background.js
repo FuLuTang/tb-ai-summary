@@ -5,6 +5,22 @@ console.log("Loading background.js...");
 // 初始化 Promise
 let settingsLoadedPromise = loadSettings();
 
+// Helper to manage task status in storage (MV3 persistence)
+async function saveTaskStatus(messageId, statusObj) {
+    const key = `activeToken_${messageId}`;
+    if (!statusObj) {
+        await browser.storage.local.remove(key);
+    } else {
+        await browser.storage.local.set({ [key]: statusObj });
+    }
+}
+
+async function getTaskStatus(messageId) {
+    const key = `activeToken_${messageId}`;
+    const result = await browser.storage.local.get(key);
+    return result[key];
+}
+
 // 监听消息
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
@@ -24,16 +40,17 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
             console.log(`[DEBUG] GET_STATUS checking IDs:`, ids);
 
-            // 1. 优先检查内存
+            // 1. 优先检查 "Active Task" 状态 (Loading / Error)
             for (const id of ids) {
-                if (activeTasks[id]) {
-                    console.log(`[DEBUG] Hit memory task for ${id}`);
-                    sendResponse(activeTasks[id]);
+                const activeState = await getTaskStatus(id);
+                if (activeState) {
+                    console.log(`[DEBUG] Hit active task storage for ${id}`);
+                    sendResponse(activeState);
                     return;
                 }
             }
 
-            // 2. 检查持久化存储
+            // 2. 检查持久化存储 (Success Results)
             for (const id of ids) {
                 const cacheKey = `cache_${id}`;
                 const cached = await browser.storage.local.get(cacheKey);
@@ -48,6 +65,46 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
         })();
         return true; // async response for GET_STATUS
     }
+
+    // 新增：Popup 获取当前邮件的 Fallback (解决 MV3 Popup API 访问问题)
+    // 新增：Popup 获取当前邮件的 Fallback
+    if (message.type === "GET_CURRENT_DISPLAYED_MESSAGE") {
+        (async () => {
+            try {
+                let foundMessage = null;
+
+                // 核心策略：使用 browser.mailTabs.getSelectedMessages()
+                if (browser.mailTabs && browser.mailTabs.getSelectedMessages) {
+                    // 1. 获取当前活动的邮件 Tab
+                    // 虽然无参调用也可以，但指定 Tab ID 更稳健
+                    let targetTabId = null;
+                    const activeTabs = await browser.mailTabs.query({ active: true, currentWindow: true });
+
+                    if (activeTabs.length > 0) {
+                        targetTabId = activeTabs[0].id;
+                    }
+
+                    // 2. 获取该 Tab 选中的邮件
+                    // 如果 targetTabId 为 null，API 会尝试默认行为（当前 Tab）
+                    const selection = targetTabId
+                        ? await browser.mailTabs.getSelectedMessages(targetTabId)
+                        : await browser.mailTabs.getSelectedMessages();
+
+                    if (selection && selection.messages && selection.messages.length > 0) {
+                        foundMessage = selection.messages[0];
+                        console.log(`[Background] Found active message: ${foundMessage.subject}`);
+                    }
+                }
+
+                sendResponse(foundMessage);
+            } catch (e) {
+                console.error("GET_CURRENT_DISPLAYED_MESSAGE failed:", e);
+                sendResponse(null);
+            }
+        })();
+        return true;
+    }
+
 
     // 其他消息需要等待设置加载
     (async () => {
@@ -82,11 +139,19 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // 监听顶部工具栏按钮点击
-browser.browserAction.onClicked.addListener(() => {
-    browser.tabs.create({
-        url: "/agent/agent.html"
+if (browser.action && browser.action.onClicked) {
+    browser.action.onClicked.addListener(() => {
+        browser.tabs.create({
+            url: "/agent/agent.html"
+        });
     });
-});
+} else if (browser.browserAction && browser.browserAction.onClicked) { // Fallback/Compat
+    browser.browserAction.onClicked.addListener(() => {
+        browser.tabs.create({
+            url: "/agent/agent.html"
+        });
+    });
+}
 
 
 // 处理单条摘要请求
@@ -105,8 +170,8 @@ async function handleStartSummary({ messageId, forceUpdate }) {
         }
     }
 
-    // 标记为正在加载
-    activeTasks[messageId] = { status: 'loading' };
+    // 标记为正在加载 (PERSISTENT STATE)
+    await saveTaskStatus(messageId, { status: 'loading' });
 
     try {
         // 1. 获取邮件详情
@@ -147,8 +212,8 @@ async function handleStartSummary({ messageId, forceUpdate }) {
 
         await browser.storage.local.set({ [indexKey]: index });
 
-        // 完成
-        delete activeTasks[messageId];
+        // 完成 - 清除 Loading 状态
+        await saveTaskStatus(messageId, null);
 
         // 通知前端更新
         browser.runtime.sendMessage({
@@ -165,7 +230,10 @@ async function handleStartSummary({ messageId, forceUpdate }) {
 
     } catch (err) {
         console.error(`[Background] Error processing ${messageId}:`, err);
-        activeTasks[messageId] = { status: 'error', error: err.message };
+        // 出错状态也保留一段时间? 或者直接返回Error状态给前端?
+        // 最好保留 Error 状态在 storage 中，让 Popup 重新打开时能看到
+        await saveTaskStatus(messageId, { status: 'error', error: err.message });
+
         browser.runtime.sendMessage({
             type: "SUMMARY_UPDATE",
             payload: { headerMessageId: messageId, status: 'error', error: err.message }

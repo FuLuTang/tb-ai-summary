@@ -4,3 +4,6 @@
 - 在某项功能具体实现上，可询问用户进行抉择，也可对用户提供的实现谏言
 - 定期阅读 UserDevDoc.md 和 AiPlanMemory.md，了解用户需求，决定你的开发行动步骤
 - 及时使用git，查看、切换对应的branch，commit，push
+- 出现无法轻易解决的实现原理问题（比如重复多次的错误），可查 /doc/Thunderbird-webext-examples-manifest_v3/ 中的官方代码示例和文档
+- 如果有你认为之后会需要用到的长久记忆，可放在 /doc/AiPlanMemory.md 中，就当做是你的长效剪切板或记事本
+- 可以找用户要log来debug。也别忘了写代码时塞入“输出log”

@@ -1,5 +1,5 @@
 {
-    "manifest_version": 2,
+    "manifest_version": 3,
     "name": "AI Chatting Mail Summarizer",
     "version": "1.2",
     "description": "Summarize your emails with AI, then know what should i do.",
@@ -16,6 +16,7 @@
         "messagesRead",
         "accountsRead",
         "activeTab",
+        "tabs",
         "storage",
         "messagesTags",
         "messagesTagsList",
@@ -37,7 +38,7 @@
         "default_title": "AI Summary",
         "default_icon": "icon.png"
     },
-    "browser_action": {
+    "action": {
         "default_title": "AI Agent",
         "default_icon": "icon.png"
     }
