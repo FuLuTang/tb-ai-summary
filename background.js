@@ -212,7 +212,7 @@ ${baseInstr}
 {
     "summary": "string (Summarize the content in ${outputLang}, < 100 words)",
     "keywords": ["string (Short keywords, 2-4 words in ${outputLang}, e.g. [Invoice], [Meeting])"],
-    "tags": ["string (The Tag Name from the list below. Return [] if no match.)"],
+    "tags": ["string (Select ALL tags that are reasonably relevant. Prefer more over fewer, but skip ones that barely relate.) Return [] if no tags match."],
     "urgency_score": number (1-10),
     "urgency_reason": "string (解释打分原因（非复述内容），一句话，最多1次逗号1次句号,简述即可。Given in ${outputLang}"
 }
@@ -236,8 +236,8 @@ Urgency Score Rules (1-10):
 Context Boosters:
 - If the subject contains "Urgent", "Emergency", "ASAP", or "Important", boost the score by +2.
 - If the author is a known VIP or manager (infer from context), boost the score by +2.
-- 若发件人是noreply, 分数 -1.
-- 若为验证码，无重要性
+- 若发件人是noreply, -1重要性.
+- 若为验证码和新登录提醒警报，-4重要性.
 
 Constraint:
 - Output ONLY valid JSON.
@@ -368,16 +368,72 @@ Use ${outputLang} for output.
 // 批量处理
 async function handleBatchSummary(payload) {
     let messageIds = [];
+    let messageInfoMap = {}; // 存储邮件信息用于日志输出
+
     // 1. 获取消息列表 (Robust Fetching)
     if (Array.isArray(payload)) {
         messageIds = payload;
     } else if (payload && payload.targetCount) {
         try {
-            let mailTab = await browser.mailTabs.getCurrent();
-            if (mailTab && mailTab.displayedFolder) {
-                console.log(`[Batch] Fetching messages from: ${mailTab.displayedFolder.name}`);
+            // 尝试多种方式获取当前显示的文件夹
+            let displayedFolder = null;
 
-                // 策略：使用 query API 获取最近的邮件 (类似老版本逻辑)
+            // 策略1: 尝试当前窗口的邮件标签页
+            try {
+                const mailTab = await browser.mailTabs.getCurrent();
+                if (mailTab && mailTab.displayedFolder) {
+                    displayedFolder = mailTab.displayedFolder;
+                    console.log(`[Batch] Got folder from current mailTab: ${displayedFolder.name}`);
+                }
+            } catch (e) {
+                console.log("[Batch] getCurrent() failed, trying fallback...", e.message);
+            }
+
+            // 策略2: 遍历所有窗口的邮件标签页
+            if (!displayedFolder) {
+                try {
+                    const allWindows = await browser.windows.getAll({ populate: false });
+                    for (const win of allWindows) {
+                        const mailTabs = await browser.mailTabs.query({ windowId: win.id });
+                        for (const tab of mailTabs) {
+                            if (tab.displayedFolder) {
+                                displayedFolder = tab.displayedFolder;
+                                console.log(`[Batch] Got folder from window ${win.id}: ${displayedFolder.name}`);
+                                break;
+                            }
+                        }
+                        if (displayedFolder) break;
+                    }
+                } catch (e) {
+                    console.log("[Batch] Window enumeration failed:", e.message);
+                }
+            }
+
+            // 策略3: 使用第一个账户的收件箱作为备选
+            if (!displayedFolder) {
+                try {
+                    const accounts = await browser.accounts.list();
+                    if (accounts && accounts.length > 0) {
+                        for (const account of accounts) {
+                            if (account.folders) {
+                                const inbox = account.folders.find(f => f.type === "inbox");
+                                if (inbox) {
+                                    displayedFolder = inbox;
+                                    console.log(`[Batch] Fallback to inbox: ${account.name} / ${inbox.name}`);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.log("[Batch] Account fallback failed:", e.message);
+                }
+            }
+
+            if (displayedFolder) {
+                console.log(`[Batch] Fetching messages from: ${displayedFolder.name}`);
+
+                // 策略：使用 query API 获取最近的邮件
                 // 逐步扩大范围: 7天 -> 30天 -> 90天 -> 1年
                 const ranges = [7, 30, 90, 365];
                 let foundMessages = [];
@@ -387,7 +443,7 @@ async function handleBatchSummary(payload) {
                     fromDate.setDate(fromDate.getDate() - days);
 
                     const page = await browser.messages.query({
-                        folder: mailTab.displayedFolder,
+                        folder: displayedFolder,
                         fromDate: fromDate
                     });
 
@@ -405,17 +461,39 @@ async function handleBatchSummary(payload) {
                 const targetMessages = foundMessages.slice(0, payload.targetCount);
                 messageIds = targetMessages.map(m => m.id);
 
+                // 存储邮件信息用于日志
+                targetMessages.forEach(m => {
+                    messageInfoMap[m.id] = {
+                        date: m.date ? new Date(m.date).toLocaleString() : "Unknown",
+                        subject: m.subject || "(No Subject)"
+                    };
+                });
+
                 console.log(`[Batch] Found ${messageIds.length} messages (Target: ${payload.targetCount})`);
             } else {
-                console.warn("[Batch] No displayed folder found.");
+                console.warn("[Batch] No displayed folder found after all attempts.");
+                browser.runtime.sendMessage({
+                    type: "BATCH_ERROR",
+                    payload: { error: "无法获取当前信箱，请确保已打开一个邮件文件夹" }
+                });
+                return;
             }
         } catch (e) {
             console.error("[Batch] Failed to auto-fetch messages:", e);
+            browser.runtime.sendMessage({
+                type: "BATCH_ERROR",
+                payload: { error: e.message }
+            });
+            return;
         }
     }
 
     if (!messageIds || messageIds.length === 0) {
         console.warn("[Batch] No messages to process.");
+        browser.runtime.sendMessage({
+            type: "BATCH_ERROR",
+            payload: { error: "未找到任何邮件" }
+        });
         return;
     }
 
@@ -469,7 +547,9 @@ async function handleBatchSummary(payload) {
         const cached = await browser.storage.local.get(cacheKey);
 
         if (!cached[cacheKey]) {
-            console.log(`[Batch] Processing ${msgId}...`);
+            const info = messageInfoMap[msgId];
+            const dateStr = info ? info.date : "Unknown";
+            console.log(`[Batch] Processing ${msgId} (${dateStr})...`);
             // 这里的 catch 非常重要，防止单个任务失败炸掉整个 Pool
             try {
                 await handleStartSummary({ messageId: msgId, forceUpdate: false });
@@ -477,7 +557,11 @@ async function handleBatchSummary(payload) {
                 console.error(`[Batch] Error in worker for ${msgId}`, e);
             }
         } else {
-            console.log(`[Batch] Skipped ${msgId}, already cached.`);
+            // 缓存命中时输出更详细的信息
+            const info = messageInfoMap[msgId];
+            const dateStr = info ? info.date : "Unknown";
+            const subjectStr = info ? info.subject.substring(0, 30) : "";
+            console.log(`[Batch] Skipped ${msgId}, already cached. Date: ${dateStr}, Subject: ${subjectStr}...`);
         }
     };
 
