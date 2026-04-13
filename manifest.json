@@ -17,6 +17,7 @@
         "accountsRead",
         "activeTab",
         "storage",
+        "unlimitedStorage",
         "messagesTags",
         "messagesTagsList",
         "messagesUpdate"

@@ -63,9 +63,50 @@ body {
     background-color: var(--sidebar-bg);
     display: flex;
     flex-direction: column;
-    transition: transform 0.3s ease;
+    transition: width 0.3s ease;
     flex-shrink: 0;
     border-right: 1px solid rgba(255, 255, 255, 0.1);
+    overflow: hidden;
+}
+
+.sidebar.collapsed {
+    width: 60px;
+}
+
+.sidebar.collapsed .item-title,
+.sidebar.collapsed .group-title,
+.sidebar.collapsed .item-actions,
+.sidebar.collapsed .new-chat-text,
+.sidebar.collapsed .user-menu-btn span:not(.avatar) {
+    display: none;
+}
+
+.sidebar.collapsed .header-row {
+    flex-direction: column-reverse; /* Put toggle button on top, new chat below */
+    gap: 15px;
+}
+
+.sidebar.collapsed .new-chat-btn {
+    padding: 10px;
+    justify-content: center;
+}
+
+.sidebar.collapsed .sidebar-collapse-btn {
+    padding: 10px;
+    border: none;
+}
+
+.sidebar.collapsed .history-item {
+    justify-content: center;
+    padding: 10px;
+}
+
+.sidebar.collapsed .history-item .icon {
+    margin: 0;
+}
+
+.sidebar.collapsed .user-menu-btn {
+    justify-content: center;
 }
 
 .sidebar-header {
@@ -681,8 +722,8 @@ input:checked+.slider:before {
     /* Pill shape */
     box-shadow: 0 0 15px rgba(0, 0, 0, 0.05);
     display: flex;
-    align-items: flex-end;
-    /* Align bottom for multiline */
+    align-items: center;
+    /* Align center nicely */
     padding: 10px 12px;
     transition: border-color 0.1s, box-shadow 0.1s;
 }
@@ -713,15 +754,13 @@ textarea {
 .input-actions-left {
     display: flex;
     align-items: center;
-    padding-bottom: 4px;
-    /* Align with single line text */
 }
 
 .attach-btn {
     background: transparent;
     border: none;
     color: var(--text-secondary);
-    padding: 8px;
+    padding: 6px;
     border-radius: 50%;
     cursor: pointer;
     transition: all 0.2s;
@@ -737,7 +776,6 @@ textarea {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding-bottom: 2px;
 }
 
 .send-btn,

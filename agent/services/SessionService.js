@@ -1,4 +1,3 @@
-
 export class SessionService {
     constructor() {
         this.STORAGE_KEY = 'agent_sessions';
@@ -10,16 +9,18 @@ export class SessionService {
         return Date.now().toString(36) + Math.random().toString(36).substr(2);
     }
 
-    _getSessions() {
-        const json = localStorage.getItem(this.STORAGE_KEY);
-        return json ? JSON.parse(json) : {};
+
+
+    async _getSessions() {
+        const result = await browser.storage.local.get(this.STORAGE_KEY);
+        return result[this.STORAGE_KEY] || {};
     }
 
-    _saveSessions(sessions) {
-        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(sessions));
+    async _saveSessions(sessions) {
+        await browser.storage.local.set({ [this.STORAGE_KEY]: sessions });
     }
 
-    createSession(title = "New Chat") {
+    async createSession(title = "New Chat") {
         const id = this._generateId();
         const session = {
             id,
@@ -28,30 +29,30 @@ export class SessionService {
             updatedAt: Date.now(),
             messages: []
         };
-        const sessions = this._getSessions();
+        const sessions = await this._getSessions();
         sessions[id] = session;
-        this._saveSessions(sessions);
+        await this._saveSessions(sessions);
         this.currentSessionId = id;
         return session;
     }
 
-    getSession(id) {
-        const sessions = this._getSessions();
+    async getSession(id) {
+        const sessions = await this._getSessions();
         return sessions[id] || null;
     }
 
-    getCurrentSession() {
+    async getCurrentSession() {
         if (!this.currentSessionId) return null;
         return this.getSession(this.currentSessionId);
     }
 
-    getAllSessions() {
-        const sessions = this._getSessions();
+    async getAllSessions() {
+        const sessions = await this._getSessions();
         return Object.values(sessions).sort((a, b) => b.updatedAt - a.updatedAt);
     }
 
-    addMessage(sessionId, message) {
-        const sessions = this._getSessions();
+    async addMessage(sessionId, message) {
+        const sessions = await this._getSessions();
         if (!sessions[sessionId]) return;
 
         sessions[sessionId].messages.push({
@@ -65,20 +66,20 @@ export class SessionService {
             sessions[sessionId].title = message.content.substring(0, 30) + (message.content.length > 30 ? '...' : '');
         }
 
-        this._saveSessions(sessions);
+        await this._saveSessions(sessions);
     }
 
-    deleteSession(id) {
-        const sessions = this._getSessions();
+    async deleteSession(id) {
+        const sessions = await this._getSessions();
         delete sessions[id];
-        this._saveSessions(sessions);
+        await this._saveSessions(sessions);
         if (this.currentSessionId === id) {
             this.currentSessionId = null;
         }
     }
 
-    clearAll() {
-        localStorage.removeItem(this.STORAGE_KEY);
+    async clearAll() {
+        await browser.storage.local.remove(this.STORAGE_KEY);
         this.currentSessionId = null;
     }
 }

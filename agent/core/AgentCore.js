@@ -14,20 +14,20 @@ export class AgentCore {
         // Lazy creation: Don't create session yet, just reset UI
         this.sessionService.currentSessionId = null;
         this.ui.resetChat();
-        this.loadHistoryToSidebar();
+        await this.loadHistoryToSidebar();
         // return session; // No session yet
     }
 
     // Load sidebar history
-    loadHistoryToSidebar() {
-        const sessions = this.sessionService.getAllSessions();
+    async loadHistoryToSidebar() {
+        const sessions = await this.sessionService.getAllSessions();
         this.ui.renderSidebarList(sessions, (sessionId) => {
             this.switchSession(sessionId);
         });
     }
 
     async clearHistory() {
-        this.sessionService.clearAll();
+        await this.sessionService.clearAll();
         // Reset UI context
         await this.startNewChat();
     }
@@ -49,7 +49,7 @@ export class AgentCore {
 
     // Switch to a specific session
     async switchSession(sessionId) {
-        const session = this.sessionService.getSession(sessionId);
+        const session = await this.sessionService.getSession(sessionId);
         if (!session) return;
 
         // 1. Set current session cursor
@@ -62,19 +62,21 @@ export class AgentCore {
     // Main entry point for user messages
     async sendMessage(userText) {
         // 1. Ensure Session Exists (Lazy Create)
-        let session = this.sessionService.getCurrentSession();
+        let session = await this.sessionService.getCurrentSession();
         if (!session) {
-            session = this.sessionService.createSession();
-            this.loadHistoryToSidebar();
+            session = await this.sessionService.createSession();
+            await this.loadHistoryToSidebar();
         }
 
         // 2. Persist User Message
-        this.sessionService.addMessage(session.id, { role: 'user', content: userText });
+        await this.sessionService.addMessage(session.id, { role: 'user', content: userText });
         // CRITICAL FIX: Reload session to include the newly added message in the context
-        session = this.sessionService.getSession(session.id);
+        session = await this.sessionService.getSession(session.id);
 
         // 3. Prepare Context
-        // 3. Prepare Context
+        let thoughtLog = [];
+        const startTime = Date.now();
+        const lang = (window.appSettings && window.appSettings.displayLanguage) || 'en';
         const toolDescriptions = this.tools.getToolDescriptions();
 
         // Use custom persona or default
@@ -95,9 +97,8 @@ Current Date: ${new Date().toLocaleString()}
         const timerId = setInterval(() => agentUiSession.updateTimer(), 1000);
         this.ui.updateStatus("正在制定计划 (HighModel)...");
 
-        let currentPlan = "";
-        let finalAnswer = "";
-        let thoughtLog = [];
+        let currentPlan = '';
+        let finalAnswer = '';
         let executionContext = [...contextMessages]; // Working memory for the loop
         this.isStopped = false;
 
@@ -274,8 +275,14 @@ Current Date: ${new Date().toLocaleString()}
             agentUiSession.finish();
             this.ui.updateStatus("完成");
 
-            const metaData = { thoughts: thoughtLog };
-            this.sessionService.addMessage(session.id, {
+            const endTime = Date.now();
+            const durationSec = Math.floor((endTime - startTime) / 1000);
+
+            const metaData = { 
+                thoughts: thoughtLog,
+                duration: durationSec
+            };
+            await this.sessionService.addMessage(session.id, {
                 role: 'assistant',
                 content: finalAnswer,
                 meta: metaData

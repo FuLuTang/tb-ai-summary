@@ -142,9 +142,7 @@ export class ChatInterface {
                 // Mock behavior: just hide sidebar for now or add a class
                 // In a real app we'd animate width to 0
                 this.sidebar.classList.toggle('collapsed'); // Need CSS for this if we want it to work fully
-                // For now visually toggle the icon maybe?
-                const isOpen = !this.sidebar.classList.contains('collapsed');
-                this.sidebar.style.display = isOpen ? 'flex' : 'none';
+                // We rely purely on the CSS '.collapsed' class to resize the sidebar and hide text
                 // Re-enable toggle button elsewhere if hidden? 
                 // ChatGPT puts a small floating toggle when collapsed.
                 // For simplicity, let's just toggle visibility.
@@ -181,9 +179,9 @@ export class ChatInterface {
                 const card = e.target.closest('.suggestion-card');
                 if (card) {
                     this.userInput.focus();
-                    // Just focus for now, text is set via onclick in HTML
-                    // If we wanted JS control:
-                    // this.userInput.value = card.dataset.prompt;
+                    // Handle via pure JS due to CSP restrictions
+                    const sText = card.querySelector('.s-text');
+                    this.userInput.value = sText ? sText.textContent : '';
                     this.adjustTextareaHeight();
                     this.updateSendButtonState();
                 }
@@ -323,7 +321,7 @@ export class ChatInterface {
                 })
                 .finally(() => {
                     // Usually AgentCore handles finishing, but UI safety check:
-                    // this.toggleSendStop(false); 
+                    this.toggleSendStop(false); 
                 });
         }
 
@@ -370,7 +368,7 @@ export class ChatInterface {
         // Normalize role for UI: 'assistant' (from storage) -> 'ai' (for CSS/Logic)
         if (role === 'assistant') role = 'ai';
 
-        console.warn('appendMessage', role, meta, text); // DEBUG LOG
+
         const row = document.createElement('div');
         row.className = `message-row ${role}`;
 
@@ -378,33 +376,56 @@ export class ChatInterface {
         content.className = 'message-content';
 
         // Avatar
-        const avatar = document.createElement('div');
-        avatar.className = `avatar ${role}`;
-        avatar.textContent = role === 'user' ? 'U' : '🧠';
+        if (role === 'user') {
+            const avatar = document.createElement('div');
+            avatar.className = `avatar ${role}`;
+            avatar.textContent = 'U';
+            content.appendChild(avatar);
+        }
 
         // Body
         const body = document.createElement('div');
         body.className = 'message-body';
 
         // 1. Render Thought Badge if exists (for AI)
-        if (role === 'ai' && meta && meta.thoughts && meta.thoughts.length > 0) {
+        if (role === 'ai') {
+            const lang = (window.appSettings && window.appSettings.displayLanguage) || 'en';
+            const thoughtsList = (meta && meta.thoughts) ? meta.thoughts : [];
+            const duration = (meta && meta.duration) ? meta.duration : 0;
+
             // Reconstruct session data for sidebar
             const sessionData = {
                 startTime: Date.now(), // Fake time for history
                 isFinished: true,
-                steps: meta.thoughts.map(t => ({
-                    thought: t.thought,
-                    action: t.action,
-                    time: Date.now()
-                }))
+                steps: thoughtsList.map(t => {
+                    let title = t.type;
+                    let detail = t.content || '';
+                    if (t.type === 'plan') title = (typeof getText === 'function' ? getText("agentPlan", lang) : null) || "Plan";
+                    if (t.type === 'thought') title = (typeof getText === 'function' ? getText("agentThought", lang) : null) || "Thought";
+                    if (t.type === 'action') {
+                        title = (typeof getText === 'function' ? getText("agentAction", lang) : null) || "Action";
+                        detail = `${t.tool}("${t.param}")`;
+                    }
+                    if (t.type === 'observation') title = "Observation";
+                    
+                    return {
+                        type: t.type,
+                        title: title,
+                        detail: detail,
+                        time: Date.now()
+                    };
+                })
             };
 
             const badge = document.createElement('div');
             badge.className = 'thought-badge'; // Finished state by default
-            const duration = meta.thoughts.length * 2; // Estimate duration or save it? Mock for now
-            const lang = (window.appSettings && window.appSettings.displayLanguage) || 'en';
-            const thinkingFinishedText = getText("agentThoughtFinished", lang);
-            badge.innerHTML = `<span class="icon" style="color:var(--text-muted)">✓</span> ${thinkingFinishedText} <span class="t-time">${duration}s</span> <span class="icon">▼</span>`;
+            badge.style.fontWeight = 'bold';
+            badge.style.opacity = '0.7';
+            badge.style.cursor = 'pointer';
+
+            // lang is already defined above
+            const badgeText = lang === 'zh' ? `已思考 ${duration} 秒` : `Thought ${duration}s`;
+            badge.innerHTML = `${badgeText} &gt;`;
 
             badge.addEventListener('click', () => {
                 this.openThoughtSidebar(sessionData);
@@ -438,7 +459,6 @@ export class ChatInterface {
             `;
         }
 
-        content.appendChild(avatar);
         content.appendChild(body);
         // Only append actions for AI in the new layout (bottom of body)
         // But in CSS for .ai .message-body we set flex-col, so appending to body works best for alignment
@@ -529,26 +549,6 @@ export class ChatInterface {
         });
     }
 
-    // Load full message history
-    loadMessages(messages) {
-        this.resetChat(); // Clear first
-        if (!messages || messages.length === 0) return;
-
-        this.switchToChatView();
-
-        messages.forEach(msg => {
-            // Render basic message
-            this.appendMessage(msg.role, msg.content);
-
-            // If it's an AI message with thoughts in metadata, we could render them too
-            // But currently the helper `createAgentSession` creates a specific live UI.
-            // For history, maybe we just render a simple "View Thoughts" expander if we wanted.
-            // For now, let's keep it simple: just text.
-        });
-
-        this.scrollToBottom();
-    }
-
 
     scrollToBottom() {
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
@@ -630,9 +630,13 @@ export class ChatInterface {
         // The Badge
         const badge = document.createElement('div');
         badge.className = 'thought-badge thinking';
+        badge.style.fontWeight = 'bold';
+        badge.style.opacity = '0.7';
+        badge.style.cursor = 'pointer';
+        
         const lang = (window.appSettings && window.appSettings.displayLanguage) || 'en';
-        const thinkingText = getText("agentThoughtFinished", lang); // We use "Thinking" or "Finished Thinking" depending on state, but initially let's use the label
-        badge.innerHTML = `<span class="icon">○</span> ${thinkingText} <span class="t-time">0s</span> <span class="icon">▼</span>`;
+        const thinkingText = lang === 'zh' ? '思考中' : 'Thinking';
+        badge.innerHTML = `${thinkingText} &gt;`;
 
         // Check if user wants to see details
         badge.addEventListener('click', () => {
@@ -661,13 +665,9 @@ export class ChatInterface {
             isFinished: false
         };
 
-        const timerSpan = badge.querySelector('.t-time');
-        const badgeIcon = badge.querySelector('.icon'); // The circle
-
         // Timer Interval
         const intervalId = setInterval(() => {
             const elapsed = Math.floor((Date.now() - sessionData.startTime) / 1000);
-            timerSpan.textContent = `${elapsed}s`;
 
             // If sidebar is open and showing THIS session, update header timer too
             if (this.currentSidebarSession === sessionData) {
@@ -702,8 +702,9 @@ export class ChatInterface {
                 clearInterval(intervalId);
                 sessionData.isFinished = true;
                 badge.classList.remove('thinking');
-                badgeIcon.textContent = '✓'; // Completed icon
-                badgeIcon.style.color = 'var(--text-muted)';
+                const elapsed = Math.floor((Date.now() - sessionData.startTime) / 1000);
+                const text = lang === 'zh' ? `思考 ${elapsed} 秒` : `Thought ${elapsed}s`;
+                badge.innerHTML = `${text} &gt;`;
 
                 // If sidebar open, update final state
                 if (this.currentSidebarSession === sessionData) {
