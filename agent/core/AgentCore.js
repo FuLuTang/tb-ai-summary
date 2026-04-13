@@ -291,9 +291,7 @@ Current Date: ${new Date().toLocaleString()}
 
             if (!finalAnswer && this.isStopped) {
                 finalAnswer = lang === 'zh' ? '已停止生成。' : 'Generation stopped.';
-            }
-
-            if (!finalAnswer) {
+            } else if (!finalAnswer) {
                 this.ui.updateStatus(`Finalizing progress after exhaustion...`);
                 const exitPrompt = [
                     ...executionContext,

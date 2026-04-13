@@ -6,7 +6,18 @@ export class SessionService {
 
     // Generate a UUID (simple version)
     _generateId() {
-        return Date.now().toString(36) + Math.random().toString(36).substr(2);
+        if (!this._idCounter) this._idCounter = 0;
+        const secureRandom = () => {
+            if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+                const bytes = new Uint8Array(16);
+                crypto.getRandomValues(bytes);
+                return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+            }
+            this._idCounter += 1;
+            const raw = `${Date.now().toString(16)}${this._idCounter.toString(16).padStart(6, '0')}`;
+            return raw.padEnd(32, '0').slice(0, 32);
+        };
+        return `${Date.now().toString(36)}-${secureRandom()}`;
     }
 
 
@@ -76,7 +87,10 @@ export class SessionService {
     _getLatestLeafId(session, startNodeId) {
         const nodes = session.tree.nodes || {};
         let cursor = startNodeId;
-        while (nodes[cursor] && nodes[cursor].children && nodes[cursor].children.length > 0) {
+        const visited = new Set();
+        while (nodes[cursor] && nodes[cursor].children?.length > 0) {
+            if (visited.has(cursor)) break;
+            visited.add(cursor);
             cursor = nodes[cursor].children[nodes[cursor].children.length - 1];
         }
         return cursor;
@@ -173,6 +187,10 @@ export class SessionService {
                     .map((siblingId) => nodes[siblingId])
                     .filter((siblingNode) => siblingNode && siblingNode.role === node.role);
                 const index = siblings.findIndex((siblingNode) => siblingNode.id === node.id);
+                if (index < 0) {
+                    console.warn('Inconsistent tree node encountered while rendering branch info:', node.id);
+                    return null;
+                }
                 const total = siblings.length || 1;
 
                 return {
@@ -183,10 +201,10 @@ export class SessionService {
                     meta: node.meta || null,
                     timestamp: node.timestamp,
                     branch: {
-                        index: index >= 0 ? index + 1 : 1,
+                        index: index + 1,
                         total,
                         hasPrev: index > 0,
-                        hasNext: index >= 0 && index < total - 1
+                        hasNext: index < total - 1
                     }
                 };
             })

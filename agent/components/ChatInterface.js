@@ -500,11 +500,27 @@ export class ChatInterface {
         if (branch && branch.total > 1 && meta && meta.nodeId) {
             const branchControls = document.createElement('div');
             branchControls.className = 'message-branch-controls';
-            branchControls.innerHTML = `
-                <button class="branch-btn${branch.hasPrev ? '' : ' disabled'}" data-node-id="${meta.nodeId}" data-direction="-1">&lt;</button>
-                <span class="branch-count">${branch.index} / ${branch.total}</span>
-                <button class="branch-btn${branch.hasNext ? '' : ' disabled'}" data-node-id="${meta.nodeId}" data-direction="1">&gt;</button>
-            `;
+            const prevBtn = document.createElement('button');
+            prevBtn.classList.add('branch-btn');
+            if (!branch.hasPrev) prevBtn.classList.add('disabled');
+            prevBtn.dataset.nodeId = meta.nodeId;
+            prevBtn.dataset.direction = '-1';
+            prevBtn.textContent = '<';
+
+            const countSpan = document.createElement('span');
+            countSpan.className = 'branch-count';
+            countSpan.textContent = `${branch.index} / ${branch.total}`;
+
+            const nextBtn = document.createElement('button');
+            nextBtn.classList.add('branch-btn');
+            if (!branch.hasNext) nextBtn.classList.add('disabled');
+            nextBtn.dataset.nodeId = meta.nodeId;
+            nextBtn.dataset.direction = '1';
+            nextBtn.textContent = '>';
+
+            branchControls.appendChild(prevBtn);
+            branchControls.appendChild(countSpan);
+            branchControls.appendChild(nextBtn);
 
             if (role === 'user') {
                 body.appendChild(branchControls);
@@ -514,8 +530,7 @@ export class ChatInterface {
         }
 
         content.appendChild(body);
-        // Only append actions for AI in the new layout (bottom of body)
-        // But in CSS for .ai .message-body we set flex-col, so appending to body works best for alignment
+        // Append actions under the message body for both user and AI rows
         if (role === 'ai' || role === 'user') body.appendChild(actions);
 
         row.appendChild(content);
