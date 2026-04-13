@@ -197,6 +197,12 @@ export class ChatInterface {
                 this.handleMessageInteractions(e);
             });
         }
+
+        // Thought Sidebar close button – bind once here so it always works
+        const tsClose = document.getElementById('ts-close-btn');
+        if (tsClose) {
+            tsClose.addEventListener('click', () => this.closeThoughtSidebar());
+        }
     }
 
     handleMessageInteractions(e) {
@@ -766,11 +772,6 @@ export class ChatInterface {
         // Sidebar Elements
         const sidebar = document.getElementById('thought-sidebar');
         const tsContent = document.getElementById('ts-content');
-        const tsClose = document.getElementById('ts-close-btn');
-
-        if (tsClose) {
-            tsClose.onclick = () => this.closeThoughtSidebar();
-        }
 
         const sessionApi = {
             addStep: (type, title, detail) => {

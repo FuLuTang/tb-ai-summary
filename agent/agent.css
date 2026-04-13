@@ -281,11 +281,13 @@ body {
     overflow: hidden;
     position: relative;
     z-index: 100;
+    pointer-events: none;
 }
 
 .thought-sidebar.open {
     width: 350px;
     /* Expanded Width */
+    pointer-events: auto;
 }
 
 .ts-header {
@@ -296,6 +298,7 @@ body {
     padding: 0 20px;
     border-bottom: 1px solid var(--border-color);
     white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .ts-title {
