@@ -625,8 +625,8 @@ input:checked+.slider:before {
 }
 
 .message-row.user .message-actions {
-    display: none;
-    /* Usually user msgs don't show actions immediately or they are inside */
+    display: flex;
+    justify-content: flex-end;
 }
 
 
@@ -680,6 +680,10 @@ input:checked+.slider:before {
     margin-bottom: 4px;
     user-select: none;
     font-weight: 600;
+}
+
+.message-actions .message-branch-controls {
+    margin-bottom: 0;
 }
 
 .branch-btn {

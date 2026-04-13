@@ -7,18 +7,16 @@ export class AgentCore {
         this.ui = ui;
         this.sessionService = new SessionService();
         this.maxIterations = 15;
+        this.isStopped = false;
+        this.currentUiSession = null;
     }
 
-    // Initialize a new chat
     async startNewChat() {
-        // Lazy creation: Don't create session yet, just reset UI
         this.sessionService.currentSessionId = null;
         this.ui.resetChat();
         await this.loadHistoryToSidebar();
-        // return session; // No session yet
     }
 
-    // Load sidebar history
     async loadHistoryToSidebar() {
         const sessions = await this.sessionService.getAllSessions();
         this.ui.renderSidebarList(sessions, (sessionId) => {
@@ -28,7 +26,6 @@ export class AgentCore {
 
     async clearHistory() {
         await this.sessionService.clearAll();
-        // Reset UI context
         await this.startNewChat();
     }
 
@@ -36,50 +33,105 @@ export class AgentCore {
         this.isStopped = true;
         this.llm.abort();
         this.ui.updateStatus("已停止");
-        // Also finish the UI session so it stops spinning
-        // This requires access to the current aiSession? 
-        // sendMessage creates local `agentUiSession`.
-        // We can't access it easily here unless we store it.
-        // But `stopGeneration` in UI usually toggles button.
-        // The thinking badge might spin forever if we don't finish it.
-        // But if `sendMessage` exits, `agentUiSession` is lost.
-        // We should technically `agentUiSession.finish()`.
-        // I'll add `this.currentUiSession` property to AgentCore.
+        if (this.currentUiSession) {
+            this.currentUiSession.finish();
+            this.currentUiSession = null;
+        }
     }
 
-    // Switch to a specific session
-    async switchSession(sessionId) {
-        const session = await this.sessionService.getSession(sessionId);
-        if (!session) return;
-
-        // 1. Set current session cursor
-        this.sessionService.currentSessionId = sessionId;
-
-        // 2. Load messages into UI
-        this.ui.loadMessages(session.messages);
-    }
-
-    // Main entry point for user messages
-    async sendMessage(userText) {
-        // 1. Ensure Session Exists (Lazy Create)
+    async _ensureSession() {
         let session = await this.sessionService.getCurrentSession();
         if (!session) {
             session = await this.sessionService.createSession();
             await this.loadHistoryToSidebar();
         }
+        return session;
+    }
 
-        // 2. Persist User Message
-        await this.sessionService.addMessage(session.id, { role: 'user', content: userText });
-        // CRITICAL FIX: Reload session to include the newly added message in the context
-        session = await this.sessionService.getSession(session.id);
+    async _loadCurrentConversation(sessionId) {
+        const messages = await this.sessionService.getDisplayMessages(sessionId);
+        this.ui.loadMessages(messages);
+    }
 
-        // 3. Prepare Context
+    async switchSession(sessionId) {
+        const session = await this.sessionService.getSession(sessionId);
+        if (!session) return;
+        this.sessionService.currentSessionId = sessionId;
+        await this._loadCurrentConversation(sessionId);
+    }
+
+    async navigateBranch(nodeId, direction) {
+        const session = await this.sessionService.getCurrentSession();
+        if (!session) return;
+        await this.sessionService.switchToSibling(session.id, nodeId, direction);
+        await this._loadCurrentConversation(session.id);
+    }
+
+    async editUserMessage(nodeId, newText) {
+        if (!newText || !newText.trim()) return;
+        const session = await this.sessionService.getCurrentSession();
+        if (!session) return;
+
+        const targetNode = await this.sessionService.getNode(session.id, nodeId);
+        if (!targetNode || targetNode.role !== 'user' || !targetNode.parentId) return;
+
+        const newUserNode = await this.sessionService.addMessage(
+            session.id,
+            { role: 'user', content: newText.trim() },
+            { parentId: targetNode.parentId }
+        );
+        if (!newUserNode) return;
+
+        await this.loadHistoryToSidebar();
+        await this._loadCurrentConversation(session.id);
+
+        const contextMessages = await this.sessionService.getContextMessages(session.id, newUserNode.id);
+        await this._generateAssistantReply(session.id, contextMessages, newUserNode.id);
+        await this.loadHistoryToSidebar();
+    }
+
+    async regenerateAssistant(nodeId) {
+        const session = await this.sessionService.getCurrentSession();
+        if (!session) return;
+
+        const targetNode = await this.sessionService.getNode(session.id, nodeId);
+        if (!targetNode || (targetNode.role !== 'assistant' && targetNode.role !== 'ai') || !targetNode.parentId) return;
+
+        await this.sessionService.setCurrentLeaf(session.id, targetNode.parentId);
+        await this._loadCurrentConversation(session.id);
+
+        const contextMessages = await this.sessionService.getContextMessages(session.id, targetNode.parentId);
+        await this._generateAssistantReply(session.id, contextMessages, targetNode.parentId);
+        await this.loadHistoryToSidebar();
+    }
+
+    async sendMessage(userText) {
+        const trimmed = (userText || '').trim();
+        if (!trimmed) return;
+
+        const session = await this._ensureSession();
+        const parentId = (session.tree && session.tree.currentLeafId) || 'root';
+        const userNode = await this.sessionService.addMessage(
+            session.id,
+            { role: 'user', content: trimmed },
+            { parentId }
+        );
+        if (!userNode) return;
+
+        await this.loadHistoryToSidebar();
+        await this._loadCurrentConversation(session.id);
+
+        const contextMessages = await this.sessionService.getContextMessages(session.id, userNode.id);
+        await this._generateAssistantReply(session.id, contextMessages, userNode.id);
+        await this.loadHistoryToSidebar();
+    }
+
+    async _generateAssistantReply(sessionId, contextMessages, assistantParentId) {
         let thoughtLog = [];
         const startTime = Date.now();
         const lang = (window.appSettings && window.appSettings.displayLanguage) || 'en';
         const toolDescriptions = this.tools.getToolDescriptions();
 
-        // Use custom persona or default
         const defaultPersona = "You are an intelligent Thunderbird Email Agent.\nYour goal is to assist the user with email tasks.";
         const customPersona = appSettings.customPrompts ? appSettings.customPrompts.agentPersona : "";
         const persona = customPersona || defaultPersona;
@@ -90,20 +142,17 @@ ${toolDescriptions}
 Current Date: ${new Date().toLocaleString()}
 `;
 
-        const contextMessages = session.messages.map(m => ({ role: m.role, content: m.content }));
-
-        // UI Initialization
         const agentUiSession = this.ui.createAgentSession();
+        this.currentUiSession = agentUiSession;
         const timerId = setInterval(() => agentUiSession.updateTimer(), 1000);
         this.ui.updateStatus("正在制定计划 (HighModel)...");
 
         let currentPlan = '';
         let finalAnswer = '';
-        let executionContext = [...contextMessages]; // Working memory for the loop
+        let executionContext = [...contextMessages];
         this.isStopped = false;
 
         try {
-            // --- Phase 1: Planning (High Model) ---
             const defaultPlan = 'Based on the conversation, please create a concise text-based plan (3-5 steps) to solve the user\'s latest request. If the request is simple (like "hi"), just say "No complex plan needed".';
             const customPlan = appSettings.customPrompts ? appSettings.customPrompts.agentPlan : "";
             const planInstr = customPlan || defaultPlan;
@@ -117,17 +166,14 @@ Current Date: ${new Date().toLocaleString()}
             const planRes = await this.llm.callHigh(planPrompt);
             currentPlan = planRes.choices[0].message.content;
 
-            const lang = appSettings.displayLanguage || "en";
             agentUiSession.addStep('plan', getText("agentPlan", lang), currentPlan);
             thoughtLog.push({ type: 'plan', content: currentPlan });
 
-            // --- Phase 2: ReAct Loop (Mid & Low Models) ---
             let iterations = 0;
 
             while (iterations < this.maxIterations && !this.isStopped) {
                 iterations++;
 
-                // --- Memory Management (README Step 1) ---
                 const contextLength = executionContext.reduce((acc, m) => acc + m.content.length, 0);
                 if (contextLength > 12000) {
                     this.ui.updateStatus(`${getText("agentMemoryCompressed", lang)} (${contextLength})...`);
@@ -149,9 +195,6 @@ Current Date: ${new Date().toLocaleString()}
 
                 this.ui.updateStatus(`${getText("agentThinking", lang)} (${iterations})...`);
 
-                // 2.1 Thought (Mid Model)
-                // MidModel sees: System + History + Plan + Current Observation Loop
-                // Default Instruction
                 const defaultThought = "Task: Analyze the current situation. Do we need to use a tool to get more information, or can we answer the user now?";
                 const customThought = appSettings.customPrompts ? appSettings.customPrompts.agentThought : "";
                 const thoughtInstr = customThought || defaultThought;
@@ -165,7 +208,6 @@ Current Date: ${new Date().toLocaleString()}
                 const midRes = await this.llm.callMid(thoughtPrompt);
                 const midContent = midRes.choices[0].message.content;
 
-                // Parse Thought
                 let thought = midContent;
                 let decision = "ANSWER";
                 if (midContent.includes("Thought:")) {
@@ -177,13 +219,9 @@ Current Date: ${new Date().toLocaleString()}
 
                 agentUiSession.addStep('thought', getText("agentThought", lang), thought);
                 thoughtLog.push({ type: 'thought', content: thought, step: iterations });
-
-                // Add thought to context for continuity
                 executionContext.push({ role: 'assistant', content: midContent });
 
-                // 2.2 Action or Answer?
                 if (decision.includes("CALL_TOOL") || midContent.includes("CALL_TOOL")) {
-                    // --- Action Extraction (Low Model) ---
                     this.ui.updateStatus(`Round ${iterations}: Tool Parsing (LowModel)...`);
 
                     const actionPrompt = [
@@ -203,18 +241,14 @@ Current Date: ${new Date().toLocaleString()}
                         agentUiSession.addStep('action', getText("agentAction", lang), `${toolName}("${toolParam}")`);
                         thoughtLog.push({ type: 'action', tool: toolName, param: toolParam });
 
-                        // Execute
                         this.ui.updateStatus(`Executing ${toolName}...`);
                         const observation = await this.tools.execute(toolName, toolParam);
                         const observationStr = `Observation: ${JSON.stringify(observation)}`;
 
-                        // Feed back to context
                         executionContext.push({ role: 'user', content: observationStr });
                         thoughtLog.push({ type: 'observation', content: observation });
-
                         agentUiSession.addStep('observation', 'Tool Output', observation);
 
-                        // --- Plan Review (High Model) - Every 3 steps ---
                         if (iterations % 3 === 0) {
                             this.ui.updateStatus(`Reviewing Plan (HighModel)...`);
 
@@ -233,18 +267,13 @@ Current Date: ${new Date().toLocaleString()}
                                 agentUiSession.addStep('plan', `🔄 Plan Updated`, currentPlan);
                             }
                         }
-
                     } else {
-                        // Low model failed to parse
                         const errorMsg = "Observation: Failed to parse tool action from LowModel.";
                         executionContext.push({ role: 'user', content: errorMsg });
                         agentUiSession.addStep('error', getText("agentError", lang), "LowModel parse failed");
                     }
-
                 } else {
-                    // --- Final Answer Generation (Mid Model) ---
                     this.ui.updateStatus(`Generating Answer...`);
-                    // We let MidModel generate the final conversational response based on the accumulated context
                     const defaultFinal = "Please provide the final answer to the user request.";
                     const customFinal = appSettings.customPrompts ? appSettings.customPrompts.agentFinal : "";
                     const finalInstr = customFinal || defaultFinal;
@@ -260,7 +289,11 @@ Current Date: ${new Date().toLocaleString()}
                 }
             }
 
-            if (iterations >= this.maxIterations) {
+            if (!finalAnswer && this.isStopped) {
+                finalAnswer = lang === 'zh' ? '已停止生成。' : 'Generation stopped.';
+            }
+
+            if (!finalAnswer) {
                 this.ui.updateStatus(`Finalizing progress after exhaustion...`);
                 const exitPrompt = [
                     ...executionContext,
@@ -270,32 +303,32 @@ Current Date: ${new Date().toLocaleString()}
                 finalAnswer = "【自动总结：思考步数已耗尽】\n" + finalRes.choices[0].message.content;
             }
 
-            // Cleanup & Save
             clearInterval(timerId);
             agentUiSession.finish();
+            this.currentUiSession = null;
             this.ui.updateStatus("完成");
 
             const endTime = Date.now();
             const durationSec = Math.floor((endTime - startTime) / 1000);
-
-            const metaData = { 
+            const metaData = {
                 thoughts: thoughtLog,
                 duration: durationSec
             };
-            await this.sessionService.addMessage(session.id, {
-                role: 'assistant',
-                content: finalAnswer,
-                meta: metaData
-            });
 
-            this.ui.appendMessage('ai', finalAnswer, metaData);
-
+            await this.sessionService.addMessage(
+                sessionId,
+                { role: 'assistant', content: finalAnswer, meta: metaData },
+                { parentId: assistantParentId }
+            );
+            await this._loadCurrentConversation(sessionId);
         } catch (err) {
             console.error(err);
             clearInterval(timerId);
             agentUiSession.finish();
+            this.currentUiSession = null;
             this.ui.appendMessage('system', `Error: ${err.message}`);
             this.ui.updateStatus("Error Occurred");
+            await this._loadCurrentConversation(sessionId);
         }
     }
 }

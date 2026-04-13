@@ -24,6 +24,9 @@ export class ChatInterface {
         this.onClearHistory = callbacks.onClearHistory;
         this.onNewChat = callbacks.onNewChat;
         this.onStop = callbacks.onStop;
+        this.onBranchNavigate = callbacks.onBranchNavigate;
+        this.onRegenerate = callbacks.onRegenerate;
+        this.onEditMessage = callbacks.onEditMessage;
         this.isChatActive = false;
         this.isGenerating = false;
 
@@ -210,7 +213,7 @@ export class ChatInterface {
         // Copy Button
         const copyBtn = target.closest('button[title="Copy"]');
         if (copyBtn) {
-            const messageBody = copyBtn.closest('.message-row').querySelector('.message-body').innerText;
+            const messageBody = copyBtn.closest('.message-row').querySelector('.answer-content')?.innerText || '';
             navigator.clipboard.writeText(messageBody).then(() => {
                 // Visual feedback?
                 const originalHTML = copyBtn.innerHTML;
@@ -220,11 +223,42 @@ export class ChatInterface {
             return;
         }
 
-        // Branch Navigation (Mock)
-        if (target.classList.contains('branch-btn')) {
-            if (target.classList.contains('disabled')) return;
-            // Logic to switch message version
-            console.log("Switch branch");
+        const branchBtn = target.closest('.branch-btn[data-node-id]');
+        if (branchBtn) {
+            if (branchBtn.classList.contains('disabled')) return;
+            const nodeId = branchBtn.dataset.nodeId;
+            const direction = parseInt(branchBtn.dataset.direction, 10);
+            if (this.onBranchNavigate && nodeId && (direction === -1 || direction === 1)) {
+                this.onBranchNavigate(nodeId, direction);
+            }
+            return;
+        }
+
+        // Regenerate Button
+        const regenBtn = target.closest('button[title="Regenerate"]');
+        if (regenBtn) {
+            const row = regenBtn.closest('.message-row');
+            const nodeId = row && row.dataset ? row.dataset.nodeId : null;
+            if (this.onRegenerate && nodeId) {
+                this.onRegenerate(nodeId);
+            }
+            return;
+        }
+
+        // Edit User Message
+        const editBtn = target.closest('button[title="Edit"]');
+        if (editBtn) {
+            const row = editBtn.closest('.message-row');
+            const nodeId = row && row.dataset ? row.dataset.nodeId : null;
+            const body = row ? row.querySelector('.answer-content') : null;
+            const currentText = body ? body.innerText : '';
+            const lang = (window.appSettings && window.appSettings.displayLanguage) || 'en';
+            const promptText = lang === 'zh' ? '编辑消息' : 'Edit message';
+            const edited = prompt(promptText, currentText);
+            if (edited !== null && this.onEditMessage && nodeId) {
+                this.onEditMessage(nodeId, edited);
+            }
+            return;
         }
     }
 
@@ -304,8 +338,6 @@ export class ChatInterface {
         // Toggle visual state
         this.toggleSendStop(true);
 
-        this.appendMessage('user', text);
-
         // Reset input
         this.userInput.value = '';
         this.adjustTextareaHeight();
@@ -358,7 +390,11 @@ export class ChatInterface {
         this.switchToChatView();
 
         messages.forEach(msg => {
-            this.appendMessage(msg.role, msg.content, msg.meta);
+            this.appendMessage(msg.role, msg.content, {
+                ...(msg.meta || {}),
+                nodeId: msg.nodeId,
+                branch: msg.branch
+            });
         });
 
         this.scrollToBottom();
@@ -371,6 +407,7 @@ export class ChatInterface {
 
         const row = document.createElement('div');
         row.className = `message-row ${role}`;
+        if (meta && meta.nodeId) row.dataset.nodeId = meta.nodeId;
 
         const content = document.createElement('div');
         content.className = 'message-content';
@@ -451,7 +488,7 @@ export class ChatInterface {
         actions.className = 'message-actions';
 
         if (role === 'user') {
-            // actions.innerHTML = `<button class="msg-action-btn" title="Edit">✎</button>`;
+            actions.innerHTML = `<button class="msg-action-btn" title="Edit">✎</button>`;
         } else {
             actions.innerHTML = `
                 <button class="msg-action-btn" title="Copy">📋</button>
@@ -459,10 +496,27 @@ export class ChatInterface {
             `;
         }
 
+        const branch = meta && meta.branch ? meta.branch : null;
+        if (branch && branch.total > 1 && meta && meta.nodeId) {
+            const branchControls = document.createElement('div');
+            branchControls.className = 'message-branch-controls';
+            branchControls.innerHTML = `
+                <button class="branch-btn${branch.hasPrev ? '' : ' disabled'}" data-node-id="${meta.nodeId}" data-direction="-1">&lt;</button>
+                <span class="branch-count">${branch.index} / ${branch.total}</span>
+                <button class="branch-btn${branch.hasNext ? '' : ' disabled'}" data-node-id="${meta.nodeId}" data-direction="1">&gt;</button>
+            `;
+
+            if (role === 'user') {
+                body.appendChild(branchControls);
+            } else {
+                actions.appendChild(branchControls);
+            }
+        }
+
         content.appendChild(body);
         // Only append actions for AI in the new layout (bottom of body)
         // But in CSS for .ai .message-body we set flex-col, so appending to body works best for alignment
-        if (role === 'ai') body.appendChild(actions);
+        if (role === 'ai' || role === 'user') body.appendChild(actions);
 
         row.appendChild(content);
 
