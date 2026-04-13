@@ -531,18 +531,18 @@ export class ChatInterface {
             }
         }
 
-        // Append actions under the message body for both user and AI rows
-        if (role === 'ai' || role === 'user') body.appendChild(actions);
-
         if (role === 'user') {
-            // Wrap bubble + (optional) branch controls in a column container so
-            // the branch navigation sits visually BELOW the bubble, not inside it.
+            // Wrap bubble + actions + (optional) branch controls in a column container
+            // so the edit icon and branch navigation sit visually BELOW the bubble, not inside it.
             const bubbleArea = document.createElement('div');
             bubbleArea.className = 'user-bubble-area';
             bubbleArea.appendChild(body);
+            bubbleArea.appendChild(actions);
             if (userBranchControls) bubbleArea.appendChild(userBranchControls);
             content.appendChild(bubbleArea);
         } else {
+            // AI: keep actions inside body as before
+            body.appendChild(actions);
             content.appendChild(body);
         }
 
