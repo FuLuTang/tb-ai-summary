@@ -556,22 +556,56 @@ export class ChatInterface {
 
     renderMarkdown(text) {
         if (!text) return '';
-        // Simple Markdown Parser (Replace with marked.js or similar for production)
+
+        // Escape HTML
         let html = text
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            // Code Blocks
-            .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
-            // Inline Code
-            .replace(/`([^`]+)`/g, '<code>$1</code>')
-            // Bold
+            .replace(/>/g, "&gt;");
+
+        // Protect fenced code blocks (prevent further substitutions inside them)
+        const codeBlocks = [];
+        html = html.replace(/```(?:\w*\n?)?([\s\S]*?)```/g, (_, code) => {
+            codeBlocks.push(`<pre><code>${code.replace(/<br>/g, '\n')}</code></pre>`);
+            return `\x00CODE${codeBlocks.length - 1}\x00`;
+        });
+
+        // Headings
+        html = html
+            .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+            .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+            .replace(/^# (.+)$/gm, '<h1>$1</h1>');
+
+        // Inline code
+        html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+        // Bold + italic, bold, italic
+        html = html
+            .replace(/\*\*\*([^*]+)\*\*\*/g, '<strong><em>$1</em></strong>')
             .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-            // New lines to <br> (only if not pre)
-            .replace(/\n/g, '<br>')
-            // Lists
-            .replace(/^\s*-\s+(.*)$/gm, '<li>$1</li>')
-            .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+            .replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
+
+        // Unordered lists: group consecutive "- item" lines into <ul>
+        html = html.replace(/((?:^[ \t]*-[ \t]+.+\n?)+)/gm, (match) => {
+            const items = match.trim().split('\n').map(line =>
+                `<li>${line.replace(/^[ \t]*-[ \t]+/, '')}</li>`
+            ).join('');
+            return `<ul>${items}</ul>`;
+        });
+
+        // Ordered lists: group consecutive "1. item" lines into <ol>
+        html = html.replace(/((?:^[ \t]*\d+\.[ \t]+.+\n?)+)/gm, (match) => {
+            const items = match.trim().split('\n').map(line =>
+                `<li>${line.replace(/^[ \t]*\d+\.[ \t]+/, '')}</li>`
+            ).join('');
+            return `<ol>${items}</ol>`;
+        });
+
+        // Newlines to <br>
+        html = html.replace(/\n/g, '<br>');
+
+        // Restore code blocks
+        html = html.replace(/\x00CODE(\d+)\x00/g, (_, i) => codeBlocks[parseInt(i)]);
 
         return html;
     }
