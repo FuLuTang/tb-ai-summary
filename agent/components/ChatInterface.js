@@ -566,7 +566,7 @@ export class ChatInterface {
         // Protect fenced code blocks (prevent further substitutions inside them)
         const codeBlocks = [];
         html = html.replace(/```(?:\w*\n?)?([\s\S]*?)```/g, (_, code) => {
-            codeBlocks.push(`<pre><code>${code.replace(/<br>/g, '\n')}</code></pre>`);
+            codeBlocks.push(`<pre><code>${code}</code></pre>`);
             return `\x00CODE${codeBlocks.length - 1}\x00`;
         });
 
@@ -583,7 +583,7 @@ export class ChatInterface {
         html = html
             .replace(/\*\*\*([^*]+)\*\*\*/g, '<strong><em>$1</em></strong>')
             .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-            .replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
+            .replace(/\*([^*]+)\*/g, '<em>$1</em>');
 
         // Unordered lists: group consecutive "- item" lines into <ul>
         html = html.replace(/((?:^[ \t]*-[ \t]+.+\n?)+)/gm, (match) => {
@@ -605,7 +605,7 @@ export class ChatInterface {
         html = html.replace(/\n/g, '<br>');
 
         // Restore code blocks
-        html = html.replace(/\x00CODE(\d+)\x00/g, (_, i) => codeBlocks[parseInt(i)]);
+        html = html.replace(/\x00CODE(\d+)\x00/g, (_, i) => codeBlocks[parseInt(i)] || '');
 
         return html;
     }
