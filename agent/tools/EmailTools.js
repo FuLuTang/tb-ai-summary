@@ -85,19 +85,30 @@ export const emailTools = {
 
     search_by_tag: async (param) => {
         try {
-            // param should be the tag name (e.g. "Important", "To Do")
-            // TB API uses 'tags' filter in messages.query
-            // Note: The tag must match the internal key or display name?
-            // Usually query({tags: [...]}) works with keys or keys usually map to names.
-            // Let's try searching by Name first, assuming keys match common names or user provided names.
-            // If it's a standard tag like "Important" (Non-junk), the key might be "$label1".
-            // But let's assume user passes a string found in UI.
+            // param could be a Tag Name (e.g. "Important") or a Tag Key (e.g. "$label1")
+            let searchKey = param;
+            console.log("[EmailTools] Searching tag input:", param);
 
-            // We might need to map names to keys if we want to be robust (like in background.js getTagsMap)
-            // But for now let's try direct query.
+            // Robustness: Try to resolve Name to Key
+            const allTagsRaw = await browser.messages.listTags();
+            const allTags = allTagsRaw.filter(t => !/[\x00-\x1f]/.test(t.key));
+            const matchedTag = allTags.find(t => t.tag === param || t.key === param);
 
+            if (matchedTag) {
+                searchKey = matchedTag.key;
+                console.log("[EmailTools] Excat match mapped to key:", searchKey);
+            } else {
+                // Try case-insensitive match for convenience
+                const looseMatch = allTags.find(t => t.tag.toLowerCase() === param.toLowerCase());
+                if (looseMatch) {
+                    searchKey = looseMatch.key;
+                    console.log("[EmailTools] Loose match mapped to key:", searchKey);
+                }
+            }
+
+            console.log("[EmailTools] Final query tag key:", searchKey);
             const page = await browser.messages.query({
-                tags: [param]
+                tags: [searchKey]
             });
 
             return (page.messages || []).slice(0, 10).map(m => ({
@@ -197,11 +208,13 @@ export const emailTools = {
     list_all_tags: async () => {
         try {
             const tags = await browser.messages.listTags();
-            return tags.map(t => ({
-                key: t.key,
-                tag: t.tag,
-                color: t.color
-            }));
+            return tags
+                .filter(t => !/[\x00-\x1f]/.test(t.key)) // Filter out corrupted keys (macOS bug)
+                .map(t => ({
+                    key: t.key,
+                    tag: t.tag,
+                    color: t.color
+                }));
         } catch (e) {
             return `获取标签列表失败: ${e.message}`;
         }

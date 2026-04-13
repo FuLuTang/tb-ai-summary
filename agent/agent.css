@@ -870,6 +870,60 @@ textarea {
     display: block;
 }
 
+/* Markdown Rendered Content */
+.answer-content h1,
+.answer-content h2,
+.answer-content h3 {
+    margin: 0.6em 0 0.3em;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--text-primary);
+}
+
+.answer-content h1 { font-size: 1.4em; }
+.answer-content h2 { font-size: 1.2em; }
+.answer-content h3 { font-size: 1.05em; }
+
+.answer-content ul,
+.answer-content ol {
+    margin: 0.4em 0;
+    padding-left: 1.4em;
+}
+
+.answer-content li {
+    margin: 0.2em 0;
+    line-height: 1.5;
+}
+
+.answer-content pre {
+    background-color: #1a1b1e;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 10px 14px;
+    margin: 0.6em 0;
+    overflow-x: auto;
+    white-space: pre;
+}
+
+.answer-content pre code {
+    background: none;
+    padding: 0;
+    font-size: 0.88em;
+    color: var(--text-secondary);
+}
+
+.answer-content code {
+    background-color: rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.9em;
+    color: var(--text-primary);
+}
+
+.answer-content strong { font-weight: 700; }
+.answer-content em { font-style: italic; }
+
 /* Utilities */
 .hidden {
     display: none !important;
