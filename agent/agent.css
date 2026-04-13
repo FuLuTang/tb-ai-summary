@@ -630,9 +630,19 @@ input:checked+.slider:before {
     gap: 4px;
 }
 
+/* Row below user bubble: edit icon + branch controls side-by-side */
+.user-below-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
 .message-row.user .message-actions {
     display: flex;
     justify-content: flex-end;
+    margin-top: 0;
 }
 
 
