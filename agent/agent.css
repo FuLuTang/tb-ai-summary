@@ -618,10 +618,16 @@ input:checked+.slider:before {
     /* Pill shape */
     border-top-right-radius: 4px;
     /* Slight accent if desired, or keep round */
+}
+
+/* Wrapper that holds the pill + branch controls as a vertical stack */
+.user-bubble-area {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
     max-width: 80%;
-    /* Don't span full width */
     margin-left: auto;
-    /* Push to right */
+    gap: 4px;
 }
 
 .message-row.user .message-actions {

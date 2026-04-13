@@ -497,6 +497,7 @@ export class ChatInterface {
         }
 
         const branch = meta && meta.branch ? meta.branch : null;
+        let userBranchControls = null;
         if (branch && branch.total > 1 && meta && meta.nodeId) {
             const branchControls = document.createElement('div');
             branchControls.className = 'message-branch-controls';
@@ -523,15 +524,27 @@ export class ChatInterface {
             branchControls.appendChild(nextBtn);
 
             if (role === 'user') {
-                body.appendChild(branchControls);
+                // Will be placed outside the bubble – held for the wrapper step below
+                userBranchControls = branchControls;
             } else {
                 actions.appendChild(branchControls);
             }
         }
 
-        content.appendChild(body);
         // Append actions under the message body for both user and AI rows
         if (role === 'ai' || role === 'user') body.appendChild(actions);
+
+        if (role === 'user') {
+            // Wrap bubble + (optional) branch controls in a column container so
+            // the branch navigation sits visually BELOW the bubble, not inside it.
+            const bubbleArea = document.createElement('div');
+            bubbleArea.className = 'user-bubble-area';
+            bubbleArea.appendChild(body);
+            if (userBranchControls) bubbleArea.appendChild(userBranchControls);
+            content.appendChild(bubbleArea);
+        } else {
+            content.appendChild(body);
+        }
 
         row.appendChild(content);
 
