@@ -132,14 +132,14 @@ export class AgentCore {
         const lang = (window.appSettings && window.appSettings.displayLanguage) || 'en';
         const toolDescriptions = this.tools.getToolDescriptions();
 
-        const defaultPersona = "You are an intelligent Thunderbird Email Agent.\nYour goal is to assist the user with email tasks.";
+        // Get the custom persona from settings, or fallback to the rich default defined in settings.js
         const customPersona = appSettings.customPrompts ? appSettings.customPrompts.agentPersona : "";
-        const persona = customPersona || defaultPersona;
+        const persona = customPersona || DEFAULT_PROMPTS.agentPersona;
 
         const baseSystemPrompt = `${persona}
-Available Tools:
+可用工具：
 ${toolDescriptions}
-Current Date: ${new Date().toLocaleString()}
+当前时间：${new Date().toLocaleString()}
 `;
 
         const agentUiSession = this.ui.createAgentSession();
@@ -153,12 +153,12 @@ Current Date: ${new Date().toLocaleString()}
         this.isStopped = false;
 
         try {
-            const defaultPlan = 'Based on the conversation, please create a concise text-based plan (3-5 steps) to solve the user\'s latest request. If the request is simple (like "hi"), just say "No complex plan needed".';
+            const defaultPlan = '基于当前的对话，请创建一个简洁的文本计划（3-5步）来解决用户的最新请求。如果请求很简单（例如“你好”），只需回复“无需复杂计划”。';
             const customPlan = appSettings.customPrompts ? appSettings.customPrompts.agentPlan : "";
             const planInstr = customPlan || defaultPlan;
 
             const planPrompt = [
-                { role: 'system', content: baseSystemPrompt + "\nYour goal is to satisfy the user request." },
+                { role: 'system', content: baseSystemPrompt + "\n你的目标是满足用户的需求。" },
                 ...contextMessages,
                 { role: 'user', content: planInstr }
             ];
@@ -177,7 +177,7 @@ Current Date: ${new Date().toLocaleString()}
                 const contextLength = executionContext.reduce((acc, m) => acc + m.content.length, 0);
                 if (contextLength > 12000) {
                     this.ui.updateStatus(`${getText("agentMemoryCompressed", lang)} (${contextLength})...`);
-                    const defaultCompress = "You are a memory management assistant. Please summarize the following conversation history into a concise summary, retaining all key facts, retrieved email info, and current progress so the Agent can continue.";
+                    const defaultCompress = "你是一个内存管理助手。请将以下对话历史总结为一段简洁的摘要，保留所有关键事实、检索到的邮件信息和当前进度，以便助手能够继续工作。";
                     const customCompress = appSettings.customPrompts ? appSettings.customPrompts.agentCompress : "";
                     const compressInstr = customCompress || defaultCompress;
 
@@ -188,21 +188,21 @@ Current Date: ${new Date().toLocaleString()}
                     const compressRes = await this.llm.callMid(compressPrompt);
                     const compressedContent = compressRes.choices[0].message.content;
                     executionContext = [
-                        { role: 'system', content: `Memory Compressed (Previous context): \n${compressedContent}` }
+                        { role: 'system', content: `内存已压缩（之前的上下文）： \n${compressedContent}` }
                     ];
                     agentUiSession.addStep('memory', getText("agentMemoryCompressed", lang), "Long context summarized to save tokens.");
                 }
 
                 this.ui.updateStatus(`${getText("agentThinking", lang)} (${iterations})...`);
 
-                const defaultThought = "Task: Analyze the current situation. Do we need to use a tool to get more information, or can we answer the user now?";
+                const defaultThought = "任务：分析当前情况。我们需要使用工具来获取更多信息，还是现在就可以回答用户？";
                 const customThought = appSettings.customPrompts ? appSettings.customPrompts.agentThought : "";
                 const thoughtInstr = customThought || defaultThought;
 
                 const thoughtPrompt = [
                     { role: 'system', content: baseSystemPrompt },
                     ...executionContext,
-                    { role: 'system', content: `Current Plan:\n${currentPlan}\n\n${thoughtInstr}\nOutput Format:\nThought: [Your reasoning]\nDecision: [CALL_TOOL or ANSWER]` }
+                    { role: 'system', content: `当前计划：\n${currentPlan}\n\n${thoughtInstr}\n输出格式：\nThought: [你的思考过程]\nDecision: [CALL_TOOL 或 ANSWER]` }
                 ];
 
                 const midRes = await this.llm.callMid(thoughtPrompt);
@@ -225,8 +225,8 @@ Current Date: ${new Date().toLocaleString()}
                     this.ui.updateStatus(`Round ${iterations}: Tool Parsing (LowModel)...`);
 
                     const actionPrompt = [
-                        { role: 'system', content: `You are a strict JSON parser. Available tools:\n${toolDescriptions}` },
-                        { role: 'user', content: `Based on this thought: "${thought}", what tool should be called?\nOutput strictly in format: Action: ToolName("Param")` }
+                        { role: 'system', content: `你是一个严格的 JSON 解析器。可用工具：\n${toolDescriptions}` },
+                        { role: 'user', content: `基于此思考：“${thought}”，应该调用哪个工具？\n严格按此格式输出：Action: 工具名("参数")` }
                     ];
 
                     const lowRes = await this.llm.callLow(actionPrompt);
@@ -243,7 +243,7 @@ Current Date: ${new Date().toLocaleString()}
 
                         this.ui.updateStatus(`Executing ${toolName}...`);
                         const observation = await this.tools.execute(toolName, toolParam);
-                        const observationStr = `Observation: ${JSON.stringify(observation)}`;
+                        const observationStr = `观察结果: ${JSON.stringify(observation)}`;
 
                         executionContext.push({ role: 'user', content: observationStr });
                         thoughtLog.push({ type: 'observation', content: observation });
@@ -252,13 +252,13 @@ Current Date: ${new Date().toLocaleString()}
                         if (iterations % 3 === 0) {
                             this.ui.updateStatus(`Reviewing Plan (HighModel)...`);
 
-                            const defaultReview = 'Based on recent observations, is this plan still valid? If needed, provide a revised plan. If valid, just say "Plan looks good".';
+                            const defaultReview = '根据最近的观察结果，此计划是否仍然有效？如果需要，请提供修订后的计划。如果有效，只需回复“计划看起来不错”。';
                             const customReview = appSettings.customPrompts ? appSettings.customPrompts.agentReview : "";
                             const reviewInstr = customReview || defaultReview;
 
                             const reviewPrompt = [
                                 ...executionContext,
-                                { role: 'user', content: `Current Plan: ${currentPlan}\n\n${reviewInstr}` }
+                                { role: 'user', content: `当前计划: ${currentPlan}\n\n${reviewInstr}` }
                             ];
                             const reviewRes = await this.llm.callHigh(reviewPrompt);
                             const reviewContent = reviewRes.choices[0].message.content;
@@ -274,7 +274,7 @@ Current Date: ${new Date().toLocaleString()}
                     }
                 } else {
                     this.ui.updateStatus(`Generating Answer...`);
-                    const defaultFinal = "Please provide the final answer to the user request.";
+                    const defaultFinal = "请对用户的请求提供最终回答。";
                     const customFinal = appSettings.customPrompts ? appSettings.customPrompts.agentFinal : "";
                     const finalInstr = customFinal || defaultFinal;
 
