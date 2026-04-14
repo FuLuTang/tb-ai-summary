@@ -201,23 +201,23 @@ async function callAI(text, author, subject, emailDate, messageId) {
     let systemPrompt = `
 ${baseInstr}
 {
-    "summary": "string (Summarize the content in ${outputLang}, < 100 words)",
-    "keywords": ["string (Short keywords, 2-4 words in ${outputLang}, e.g. [Invoice], [Meeting])"],
-    "urgency_score": number (1-10),
-    "urgency_reason": "string (解释打分原因（非复述内容），一句话，最多1次逗号1次句号,简述即可。Given in ${outputLang}"`;
+    "summary": "字符串 (使用 ${outputLang} 总结内容，少于 100 字)",
+    "keywords": ["字符串 (短关键词，每个 2-4 字，使用 ${outputLang}，例如 [发票], [会议])"],
+    "urgency_score": 数字 (1-10),
+    "urgency_reason": "字符串 (解释打分原因（非复述内容），一句话，最多1次逗号1次句号,简述即可。使用 ${outputLang})"`;
 
     if (tagsListFormatted) {
         systemPrompt = `
 ${baseInstr}
 {
-    "summary": "string (Summarize the content in ${outputLang}, < 100 words)",
-    "keywords": ["string (Short keywords, 2-4 words in ${outputLang}, e.g. [Invoice], [Meeting])"],
-    "tags": ["string (Select ALL tags that are reasonably relevant. Prefer more over fewer, but skip ones that barely relate.) Return [] if no tags match."],
-    "urgency_score": number (1-10),
-    "urgency_reason": "string (解释打分原因（非复述内容），一句话，最多1次逗号1次句号,简述即可。Given in ${outputLang}"
+    "summary": "字符串 (使用 ${outputLang} 总结内容，少于 100 字)",
+    "keywords": ["字符串 (短关键词，每个 2-4 字，使用 ${outputLang}，例如 [发票], [会议])"],
+    "tags": ["字符串 (选择所有相关的标签。宁多勿少，但跳过完全不相关的。) 如果没有匹配标签则返回 []。"],
+    "urgency_score": 数字 (1-10),
+    "urgency_reason": "字符串 (解释打分原因（非复述内容），一句话，最多1次逗号1次句号,简述即可。使用 ${outputLang})"
 }
 
-Select tags from this list (Use the 'Name'):
+从以下列表中选择标签（使用‘名称’）：
 ${tagsListFormatted}`;
     } else {
         systemPrompt += `
@@ -226,37 +226,33 @@ ${tagsListFormatted}`;
 
     systemPrompt += `
 
-Urgency Score Rules (1-10):
-- 10（危急）：需要立即采取行动。存在财务损失风险，或直接由CEO/老师下达的命令，或者对我的私人对话。
-- 8-9（高）：需要在48小时内采取行动。重要的漏洞，老师要求，或临近截止日期的作业&提醒。(不包括无用推广)
-- 5-7（中）：正常工作任务。在本周内处理。标准请求、代码审查或会议邀请。
-- 3-4（低）：可能有用的信息，但无需立即采取措施。每周报告、课程提醒，常见新登录提醒
-- 1-2（无）：仅供参考，新闻简报、广告或垃圾邮件,推广消息，不重要的服务升级,验证码推送
+评分规则说明:
+- 紧急程度评估通常基于时间敏感度和重要性。
 
-Context Boosters:
-- If the subject contains "Urgent", "Emergency", "ASAP", or "Important", boost the score by +2.
-- If the author is a known VIP or manager (infer from context), boost the score by +2.
-- 若发件人是noreply, -1重要性.
-- 若为验证码和新登录提醒警报，-4重要性.
+语境增强:
+- 如果主题包含“紧急”、“紧急情况”、“尽快”或“重要”，分数 +2。
+- 如果发件人是已知的 VIP 或管理人员，分数 +2。
+- 若发件人是 noreply，分数 -1。
+- 若为验证码，无重要性（分数 -4）。
 
-Constraint:
-- Output ONLY valid JSON.
-- Do not include markdown ' \`\`\`json ' fences.
-- Summary, keywords, action_items, and urgency_reason MUST be in ${outputLang}.
+约束条件:
+- 仅输出有效的 JSON。
+- 不要包含 markdown 的 ' \`\`\`json ' 代码块标记。
+- summary, keywords 和 urgency_reason 必须使用 ${outputLang}。
 `;
 
     // 2. User Prompt
     const userPrompt = `
-Context:
-Current Time: ${now}
-Email Sent Time: ${sentTime}
-Author: ${author}
-Subject: ${subject}
+邮件上下文:
+当前时间: ${now}
+邮件发送时间: ${sentTime}
+发件人: ${author}
+主题: ${subject}
 
-Email Body:
+邮件正文:
 ${text}
 
-Use ${outputLang} for output.
+请使用 ${outputLang} 进行输出。
 `;
 
     if (!appSettings.apiKey) {
@@ -611,32 +607,32 @@ async function handleBriefing() {
 
         // 3. 构造简报 Prompt
         const summariesText = recentSummaries.map((s, i) => {
-            return `Email ${i + 1}:
-Subject: ${s.subject}
-From: ${s.author}
-Urgency: ${s.urgency}
-Summary: ${s.summary}
+            return `邮件 ${i + 1}:
+主题: ${s.subject}
+发件人: ${s.author}
+紧急度: ${s.urgency}
+摘要: ${s.summary}
 `;
         }).join("\n---\n");
 
         const outputLang = appSettings.outputLanguage || "Simplified Chinese";
 
-        const defaultBriefingInstr = `You are a executive secretary. Based on the following email summaries from the last 24 hours, generate a "Daily Briefing".
+        const defaultBriefingInstr = `你是一位行政秘书。根据过去 24 小时内的以下邮件摘要，生成一份“每日简报”。
 
-Format:
-1. **Overview**: 1-2 sentences overall status.
-2. **Top Priorities**: List 3 most urgent items (High urgency score).
-3. **Key Themes**: Group other items by topic (e.g. Work, News, Personal).
-4. **Action Plan**: Suggested order of processing.
+格式要求：
+1. **概览**：1-2 句总体情况说明。
+2. **最高优先级**：列出 3 个最紧急的项目（紧急分数高）。
+3. **关键主题**：按主题（如工作、新闻、个人）对其他项目进行归类。
+4. **行动计划**：建议的处理顺序。
 
-Output in ${outputLang}. Use Markdown.`;
+请使用 ${outputLang} 回答。使用 Markdown 格式。`;
 
         const customBriefing = appSettings.customPrompts ? appSettings.customPrompts.briefing : "";
         const briefingInstr = customBriefing || defaultBriefingInstr;
 
         const briefingPrompt = `${briefingInstr}
 
-Email Summaries:
+邮件摘要列表:
 ${summariesText}
 `;
 
@@ -655,7 +651,7 @@ ${summariesText}
             body: JSON.stringify({
                 model: model,
                 messages: [
-                    { role: "system", content: "You are a helpful assistant." },
+                    { role: "system", content: "你是一个得力的助手。" },
                     { role: "user", content: briefingPrompt }
                 ],
                 temperature: 0.5

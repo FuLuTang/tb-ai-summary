@@ -281,11 +281,13 @@ body {
     overflow: hidden;
     position: relative;
     z-index: 100;
+    pointer-events: none;
 }
 
 .thought-sidebar.open {
     width: 350px;
     /* Expanded Width */
+    pointer-events: auto;
 }
 
 .ts-header {
@@ -296,6 +298,7 @@ body {
     padding: 0 20px;
     border-bottom: 1px solid var(--border-color);
     white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .ts-title {
@@ -618,15 +621,31 @@ input:checked+.slider:before {
     /* Pill shape */
     border-top-right-radius: 4px;
     /* Slight accent if desired, or keep round */
+}
+
+/* Wrapper that holds the pill + branch controls as a vertical stack */
+.user-bubble-area {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
     max-width: 80%;
-    /* Don't span full width */
     margin-left: auto;
-    /* Push to right */
+    gap: 4px;
+}
+
+/* Row below user bubble: edit icon + branch controls side-by-side */
+.user-below-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
 }
 
 .message-row.user .message-actions {
-    display: none;
-    /* Usually user msgs don't show actions immediately or they are inside */
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0;
 }
 
 
@@ -680,6 +699,10 @@ input:checked+.slider:before {
     margin-bottom: 4px;
     user-select: none;
     font-weight: 600;
+}
+
+.message-actions .message-branch-controls {
+    margin-bottom: 0;
 }
 
 .branch-btn {

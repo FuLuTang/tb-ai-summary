@@ -26,6 +26,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         },
         onStop: () => {
             agent.stop();
+        },
+        onBranchNavigate: async (nodeId, direction) => {
+            await agent.navigateBranch(nodeId, direction);
+        },
+        onRegenerate: async (nodeId) => {
+            await agent.regenerateAssistant(nodeId);
+        },
+        onEditMessage: async (nodeId, newText) => {
+            await agent.editUserMessage(nodeId, newText);
         }
     });
 
