@@ -440,6 +440,7 @@ export class ChatInterface {
 
         if (role === 'ai' || role === 'user') {
             textDiv.innerHTML = this.renderMarkdown(text);
+            this.renderMermaidBlocks(textDiv);
         } else {
             textDiv.textContent = text;
         }
@@ -565,8 +566,16 @@ export class ChatInterface {
 
         // Protect fenced code blocks (prevent further substitutions inside them)
         const codeBlocks = [];
-        html = html.replace(/```(?:\w*\n?)?([\s\S]*?)```/g, (_, code) => {
-            codeBlocks.push(`<pre><code>${code}</code></pre>`);
+        html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+            if (lang.toLowerCase() === 'mermaid') {
+                // Unescape HTML entities to get original mermaid source
+                const rawCode = code
+                    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+                const id = 'mermaid-' + Math.random().toString(36).slice(2);
+                codeBlocks.push(`<div class="mermaid-block" data-id="${id}" data-code="${encodeURIComponent(rawCode)}"><div class="mermaid-loading">Loading diagram...</div></div>`);
+            } else {
+                codeBlocks.push(`<pre><code>${code}</code></pre>`);
+            }
             return `\x00CODE${codeBlocks.length - 1}\x00`;
         });
 
@@ -721,6 +730,7 @@ export class ChatInterface {
             // Helper to stream answer content
             appendAnswer: (text) => {
                 answerDiv.innerHTML = this.renderMarkdown(text);
+                this.renderMermaidBlocks(answerDiv);
                 this.scrollToBottom();
             }
         };
@@ -805,6 +815,23 @@ export class ChatInterface {
 
     renderMarkdownTo(element, text) {
         element.innerHTML = this.renderMarkdown(text);
+        this.renderMermaidBlocks(element);
+    }
+
+    renderMermaidBlocks(container) {
+        if (typeof mermaid === 'undefined') return;
+        const blocks = container.querySelectorAll('.mermaid-block');
+        blocks.forEach(async (block) => {
+            const id = block.dataset.id;
+            const code = decodeURIComponent(block.dataset.code || '');
+            if (!code) return;
+            try {
+                const { svg } = await mermaid.render(id, code);
+                block.innerHTML = svg;
+            } catch (err) {
+                block.innerHTML = `<pre class="mermaid-error">${err.message || 'Mermaid render error'}</pre>`;
+            }
+        });
     }
 
     updateStatus(text) {

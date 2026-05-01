@@ -1053,3 +1053,29 @@ textarea {
         display: block;
     }
 }
+/* Mermaid diagram blocks */
+.mermaid-block {
+    margin: 8px 0;
+    text-align: center;
+    overflow-x: auto;
+}
+
+.mermaid-block svg {
+    max-width: 100%;
+    height: auto;
+    background: white;
+    border-radius: var(--radius-md);
+    padding: 8px;
+}
+
+.mermaid-loading {
+    color: var(--text-muted);
+    font-style: italic;
+    padding: 8px;
+}
+
+.mermaid-error {
+    color: #f87171;
+    font-size: 0.85em;
+    white-space: pre-wrap;
+}

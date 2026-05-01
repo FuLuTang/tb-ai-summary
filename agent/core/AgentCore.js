@@ -88,6 +88,7 @@ export class AgentCore {
 Available Tools:
 ${toolDescriptions}
 Current Date: ${new Date().toLocaleString()}
+When necessary, you may use Mermaid diagrams (in \`\`\`mermaid code blocks) to visually present information such as workflows, timelines, or relationships.
 `;
 
         const contextMessages = session.messages.map(m => ({ role: m.role, content: m.content }));
